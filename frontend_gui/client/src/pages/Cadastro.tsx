@@ -3,8 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { toast } from "sonner";
+import { Eye, EyeOff, User, Phone } from "lucide-react";
 
 interface FormData {
+  nome: string;
+  telefone: string;
+}
+
+interface Cliente {
+  id: number;
   nome: string;
   telefone: string;
 }
@@ -16,97 +23,193 @@ export default function Cadastro() {
   });
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [, navigate] = useLocation();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const formatarTelefone = (telefone: string) => {
+    const numbers = telefone.replace(/\D/g, '');
+    if (numbers.length <= 11) {
+      return numbers
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{5})(\d)/, '$1-$2')
+        .replace(/(-\d{4})\d+?$/, '$1');
+    }
+    return telefone;
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    
+    if (name === "telefone") {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: formatarTelefone(value),
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
+  };
+
+  const validarFormulario = (): { valido: boolean; erro?: string } => {
+    if (!formData.nome.trim()) {
+      return { valido: false, erro: "Nome é obrigatório" };
+    }
+
+    if (!formData.telefone.trim()) {
+      return { valido: false, erro: "Telefone é obrigatório" };
+    }
+
+    const telefoneLimpo = formData.telefone.replace(/\D/g, '');
+    if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
+      return { valido: false, erro: "Telefone deve ter 10 ou 11 dígitos" };
+    }
+
+    if (formData.nome.trim().length < 2) {
+      return { valido: false, erro: "Nome deve ter pelo menos 2 caracteres" };
+    }
+
+    return { valido: true };
+  };
+
+  const handleLogin = async (telefone: string): Promise<Cliente> => {
+    const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+    const telefoneLimpo = telefone.replace(/\D/g, '');
+    
+    const response = await fetch(
+      `${apiUrl}/v1/client?telephone=${telefoneLimpo}`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error("Cliente não encontrado. Verifique o telefone ou crie uma conta.");
+      }
+      throw new Error(`Erro ${response.status}: Falha ao buscar cliente`);
+    }
+
+    return await response.json();
+  };
+
+  const handleCadastro = async (dados: FormData): Promise<Cliente> => {
+    const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+    const telefoneLimpo = dados.telefone.replace(/\D/g, '');
+    
+    const response = await fetch(
+      `${apiUrl}/v1/client`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nome: dados.nome.trim(),
+          telefone: telefoneLimpo,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      let errorMessage = "Erro ao criar conta";
+      
+      try {
+        const errorData = await response.json();
+        if (errorData.message?.includes("já existe")) {
+          errorMessage = "Este telefone já está cadastrado. Faça login.";
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch {
+        // Se não conseguir parsear o JSON, usa mensagem padrão
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validação básica
-    if (!formData.nome || !formData.telefone) {
-      toast.error("Por favor, preencha todos os campos obrigatórios");
+    const validacao = validarFormulario();
+    if (!validacao.valido) {
+      toast.error(validacao.erro!);
       return;
     }
 
     try {
       setLoading(true);
 
+      let cliente: Cliente;
+
       if (isLogin) {
-        // Buscar cliente por telefone
-        const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
-        const response = await fetch(
-          `${apiUrl}/v1/client?telephone=${formData.telefone}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Cliente não encontrado");
+        // Fazer login
+        cliente = await handleLogin(formData.telefone);
+        
+        // Verificar se o nome corresponde (opcional, para segurança)
+        if (cliente.nome.toLowerCase() !== formData.nome.trim().toLowerCase()) {
+          toast.warning("Nome não corresponde ao cadastro. Verifique seus dados.");
+          return;
         }
-
-        const cliente = await response.json();
-        localStorage.setItem("clienteId", cliente.id.toString());
-        localStorage.setItem("clienteNome", cliente.nome);
-        localStorage.setItem("clienteTelefone", cliente.telefone);
+        
         toast.success(`Bem-vindo de volta, ${cliente.nome}!`);
-        window.location.href = "/menu";
       } else {
-        // Criar novo cliente
-        const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
-        const response = await fetch(
-          `${apiUrl}/v1/client`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              nome: formData.nome,
-              telefone: formData.telefone,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Erro ao criar cliente");
-        }
-
-        const cliente = await response.json();
-        localStorage.setItem("clienteId", cliente.id.toString());
-        localStorage.setItem("clienteNome", cliente.nome);
-        localStorage.setItem("clienteTelefone", cliente.telefone);
-        toast.success("Cadastro realizado com sucesso!");
-        window.location.href = "/menu";
+        // Criar nova conta
+        cliente = await handleCadastro(formData);
+        toast.success("Conta criada com sucesso!");
       }
+
+      // Salvar dados no localStorage
+      localStorage.setItem("clienteId", cliente.id.toString());
+      localStorage.setItem("clienteNome", cliente.nome);
+      localStorage.setItem("clienteTelefone", cliente.telefone);
+
+      // Redirecionar para o menu
+      setTimeout(() => {
+        window.location.href = "/menu";
+      }, 1000);
+
     } catch (err) {
       console.error("Erro:", err);
-      toast.error(
-        isLogin
-          ? "Erro ao fazer login. Verifique seus dados."
-          : "Erro ao criar conta. Tente novamente."
-      );
+      toast.error(err instanceof Error ? err.message : "Erro inesperado. Tente novamente.");
     } finally {
       setLoading(false);
     }
   };
 
+  const limparFormulario = () => {
+    setFormData({
+      nome: "",
+      telefone: "",
+    });
+  };
+
+  const toggleModo = () => {
+    setIsLogin(!isLogin);
+    limparFormulario();
+  };
+
+  const continuarSemCadastro = () => {
+    toast.info("Você pode fazer pedidos, mas alguns recursos serão limitados");
+    setTimeout(() => {
+      window.location.href = "/menu";
+    }, 500);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
       {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="bg-white shadow-sm sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-4">
           <Link href="/">
-            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80">
+            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
               <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
               <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
             </div>
@@ -115,80 +218,97 @@ export default function Cadastro() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-12 flex items-center justify-center min-h-[calc(100vh-80px)]">
+      <main className="container mx-auto px-4 py-8 flex items-center justify-center min-h-[calc(100vh-80px)]">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2 text-center">
-              {isLogin ? "Fazer Login" : "Criar Conta"}
-            </h2>
-            <p className="text-gray-600 text-center mb-8">
-              {isLogin
-                ? "Acesse sua conta para continuar"
-                : "Crie uma conta para fazer pedidos"}
-            </p>
+          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+            {/* Cabeçalho do Formulário */}
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <User className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                {isLogin ? "Bem-vindo de volta!" : "Crie sua conta"}
+              </h2>
+              <p className="text-gray-600">
+                {isLogin
+                  ? "Entre com seus dados para continuar"
+                  : "Cadastre-se para fazer pedidos"}
+              </p>
+            </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nome Completo *
-                  </label>
+            {/* Formulário */}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Nome Completo *
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                   <input
                     type="text"
                     name="nome"
                     value={formData.nome}
                     onChange={handleChange}
-                    placeholder="Seu nome"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
+                    placeholder="Seu nome completo"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    disabled={loading}
                   />
                 </div>
-              
+              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">
                   Telefone *
                 </label>
-                <input
-                  type="tel"
-                  name="telefone"
-                  value={formData.telefone}
-                  onChange={handleChange}
-                  placeholder="(11) 9 9999-9999"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="tel"
+                    name="telefone"
+                    value={formData.telefone}
+                    onChange={handleChange}
+                    placeholder="(11) 99999-9999"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    disabled={loading}
+                    maxLength={15}
+                  />
+                </div>
+                <p className="text-xs text-gray-500">
+                  Digite apenas números com DDD
+                </p>
               </div>
 
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 mt-6"
+                className="w-full bg-gradient-to-r from-blue-600 to-orange-600 hover:from-blue-700 hover:to-orange-700 text-white py-3 rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? "Processando..." : isLogin ? "Entrar" : "Criar Conta"}
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    {isLogin ? "Entrando..." : "Criando conta..."}
+                  </div>
+                ) : isLogin ? (
+                  "Entrar na Conta"
+                ) : (
+                  "Criar Minha Conta"
+                )}
               </Button>
             </form>
 
+            {/* Alternar entre Login/Cadastro */}
             <div className="mt-6 text-center">
               <p className="text-gray-600">
                 {isLogin ? "Não tem uma conta? " : "Já tem uma conta? "}
                 <button
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="text-blue-600 hover:text-blue-700 font-semibold"
+                  onClick={toggleModo}
+                  disabled={loading}
+                  className="text-blue-600 hover:text-blue-700 font-semibold disabled:opacity-50 transition-colors"
                 >
-                  {isLogin ? "Cadastre-se" : "Faça login"}
+                  {isLogin ? "Cadastre-se aqui" : "Faça login aqui"}
                 </button>
               </p>
             </div>
-
-        {/* botão sem cadastras*/}
-          {/* <div className="mt-6 pt-6 border-t border-gray-200">
-              <Link href="/menu">
-                <Button variant="outline" className="w-full">
-                  Continuar  para fazer pedidos cadastro
-                </Button>
-              </Link>
-            </div>
-            */}
           </div>
         </div>
       </main>

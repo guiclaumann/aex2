@@ -12,6 +12,8 @@ interface Produto {
   descricao: string;
   preco_venda: number;
   nome_categoria: string;
+  disponivel?: boolean;
+  imagem_url?: string;
 }
 
 interface CarrinhoItem {
@@ -225,7 +227,7 @@ export default function Menu() {
                 <h3 className="text-2x1 font-bold text-gray-900 mb-4 capitalize">
                   {categoria}
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-60">
                   {prods.map((produto) => {
                     const quantidadeNoCarrinho = getQuantidadeNoCarrinho(produto.id);
                     const quantidadeSelecionada = quantidades[produto.id] || 1;

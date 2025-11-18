@@ -2,14 +2,19 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
+import AdminRoute from "./components/AdminRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import AcompanharPedido from "./pages/AcompanharPedido";
+import Admin from "./pages/Admin";
+import AdminLogin from "./pages/admin/Login";
+import AdminPedidos from "./pages/admin/Pedidos";
+import AdminProdutos from "./pages/admin/Produtos";
+import Cadastro from "./pages/Cadastro";
+import Favoritos from "./pages/Favoritos";
 import Home from "./pages/Home";
 import Menu from "./pages/Menu";
-import Cadastro from "./pages/Cadastro";
 import Pagamento from "./pages/Pagamento";
-import AcompanharPedido from "./pages/AcompanharPedido";
-import Favoritos from "./pages/Favoritos";
 
 function Router() {
   return (
@@ -20,17 +25,23 @@ function Router() {
       <Route path={"/pagamento"} component={Pagamento} />
       <Route path={"/acompanhar/:pedidoId"} component={AcompanharPedido} />
       <Route path={"/favoritos"} component={Favoritos} />
+      
+      {/* 🔧 ROTAS DO ADMIN - MOVER PARA CIMA */}
+      <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin">
+        <AdminRoute>
+          <Route path="/" component={Admin} />
+          <Route path="/produtos" component={AdminProdutos} />
+          <Route path="/pedidos" component={AdminPedidos} />
+        </AdminRoute>
+      </Route>
+      
       <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
+      {/* Final fallback route - DEVE SER SEMPRE A ÚLTIMA */}
       <Route component={NotFound} />
     </Switch>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
   return (

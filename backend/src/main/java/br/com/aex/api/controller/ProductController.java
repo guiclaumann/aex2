@@ -10,13 +10,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
@@ -43,7 +37,6 @@ public class ProductController {
         return ResponseEntity.ok(response);
     }
 
-
     @GetMapping(path = "/{id}")
     @Operation(summary = "Get Product by ID")
     @Parameter(name = "id", in = ParameterIn.PATH, description = "Product ID")
@@ -56,13 +49,20 @@ public class ProductController {
     @PostMapping
     @Operation(summary = "Create Product")
     public ResponseEntity<ProductResponseDtoV1> createProduct(@RequestBody @Valid final ProductDtoV1 productDto) {
-        final Produto produto = productService.saveProduct(productDto);
+        // ✅ CORREÇÃO: Converter DTO para Entity
+        Produto produto = new Produto();
+        produto.setNome(productDto.nome());
+        produto.setDescricao(productDto.descricao());
+        produto.setPrecoVenda(productDto.precoVenda());
+        // Se tiver categoria no DTO: produto.setCategoria(productDto.categoria());
+        
+        final Produto savedProduto = productService.saveProduct(produto);
         final URI uri = UriComponentsBuilder
                 .fromPath(V1_PRODUCT + "/{id}")
-                .buildAndExpand(produto.getId())
+                .buildAndExpand(savedProduto.getId())
                 .toUri();
 
-        final ProductResponseDtoV1 response = ProductResponseDtoV1.from(produto);
+        final ProductResponseDtoV1 response = ProductResponseDtoV1.from(savedProduto);
         return ResponseEntity.created(uri).body(response);
     }
 
@@ -73,5 +73,4 @@ public class ProductController {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
     }
-
 }

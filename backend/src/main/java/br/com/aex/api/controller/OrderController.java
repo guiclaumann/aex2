@@ -11,29 +11,20 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import static br.com.aex.api.Endpoints.V1_ORDER;
 
 @RestController
 @RequestMapping(V1_ORDER)
 @Tag(name = "Order Management", description = "Operations related to Orders")
+@RequiredArgsConstructor
 public class OrderController {
 
     private final OrderService orderService;
     private final CreateOrderService createOrderService;
-
-    public OrderController(OrderService orderService, CreateOrderService createOrderService) {
-        this.orderService = orderService;
-        this.createOrderService = createOrderService;
-    }
 
     @GetMapping(path = "/{id}")
     @Operation(summary = "Get Order by ID")
@@ -41,15 +32,32 @@ public class OrderController {
     public ResponseEntity<OrderDtoV1> getOrder(@PathVariable final Long id) {
         final Pedido order = orderService.getOrder(id);
         final OrderDtoV1 response = OrderDtoV1.from(order);
-
         return ResponseEntity.ok(response);
     }
 
     @PostMapping(path = "/create_order")
     @Operation(summary = "Create Order with Products list")
-    public ResponseEntity<CompleteOrderDtoV1> createOrder(@RequestBody @Valid CompleteOrderDtoV1 completeOrderDto) {
-        final CompleteOrderDtoV1 response = createOrderService.createOrder(completeOrderDto);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<?> createOrder(@RequestBody @Valid CompleteOrderDtoV1 completeOrderDto) {
+        try {
+            System.out.println("📦 Recebendo pedido - Cliente ID: " + completeOrderDto.getClienteId());
+            System.out.println("📦 Total de itens: " + (completeOrderDto.getItens() != null ? completeOrderDto.getItens().size() : 0));
+            System.out.println("📦 Total do pedido: " + completeOrderDto.getTotal());
+            
+            if (completeOrderDto.getItens() != null) {
+                completeOrderDto.getItens().forEach(item -> 
+                    System.out.println("📦 Item - Produto ID: " + item.getProdutoId() + ", Quantidade: " + item.getQuantidade())
+                );
+            }
+
+            final CompleteOrderDtoV1 response = createOrderService.createOrder(completeOrderDto);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Erro ao criar pedido: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500)
+                .body("Erro interno ao criar pedido: " + e.getMessage());
+        }
     }
 
     @DeleteMapping(path = "/{id}")
@@ -59,5 +67,4 @@ public class OrderController {
         orderService.deleteOrder(id);
         return ResponseEntity.noContent().build();
     }
-
 }

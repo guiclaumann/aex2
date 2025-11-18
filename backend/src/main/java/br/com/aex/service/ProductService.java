@@ -1,58 +1,44 @@
 package br.com.aex.service;
 
-import br.com.aex.api.dto.product.ProductDtoV1;
-import br.com.aex.entity.Categoria;
 import br.com.aex.entity.Produto;
-import br.com.aex.model.CategoryEnum;
-import br.com.aex.repository.ProductRepository;
+import br.com.aex.repository.ProdutoRepository;
 import br.com.aex.service.exception.ResourceNotFoundException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class ProductService {
 
-    private final ProductRepository productRepository;
-    private final CategoryService categoryService;
+    private final ProdutoRepository produtoRepository;
 
-    public ProductService(ProductRepository productRepository, CategoryService categoryService) {
-        this.productRepository = productRepository;
-        this.categoryService = categoryService;
-    }
-
+    // ✅ Métodos que os Controllers esperam:
     public List<Produto> getProducts() {
-        final List<Produto> products = productRepository.findAll();
-        if (products.isEmpty())
-            throw new ResourceNotFoundException("Não existem Produtos cadastrados", this.getClass().getSimpleName());
-
-        return products;
+        return produtoRepository.findAll();
     }
 
-    public Produto getProduct(final Long id) {
-        final Optional<Produto> product = productRepository.findById(id);
-        return product.orElseThrow(() -> new ResourceNotFoundException(
-                "Produto não encontrado: " + id,
-                this.getClass().getSimpleName()
-        ));
+    public Produto getProduct(Long id) {
+        return produtoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
     }
 
-    public Produto saveProduct(final ProductDtoV1 productDto) {
-        final CategoryEnum categoryEnum = CategoryEnum.from(productDto.categoria());
-        final Categoria category = categoryService.getCategory(categoryEnum);
-        final Produto product = Produto.builder()
-                .nome(productDto.nome())
-                .descricao(productDto.descricao())
-                .precoVenda(productDto.precoVenda())
-                .categoria(category)
-                .build();
-
-        return productRepository.save(product);
+    public Produto saveProduct(Produto product) {
+        return produtoRepository.save(product);
     }
 
-    public void deleteProduct(final Long id) {
-        productRepository.deleteById(id);
+    public Produto updateProduct(Long id, Produto productDetails) {
+        Produto product = getProduct(id);
+        product.setNome(productDetails.getNome());
+        product.setDescricao(productDetails.getDescricao());
+        product.setPrecoVenda(productDetails.getPrecoVenda());
+        product.setCategoria(productDetails.getCategoria());
+        return produtoRepository.save(product);
     }
 
+    public void deleteProduct(Long id) {
+        Produto product = getProduct(id);
+        produtoRepository.delete(product);
+    }
 }

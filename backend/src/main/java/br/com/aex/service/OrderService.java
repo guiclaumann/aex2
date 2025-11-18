@@ -1,35 +1,24 @@
 package br.com.aex.service;
 
 import br.com.aex.entity.Pedido;
-import br.com.aex.repository.OrderRepository;
+import br.com.aex.repository.PedidoRepository;
 import br.com.aex.service.exception.ResourceNotFoundException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
-
 @Service
+@RequiredArgsConstructor
 public class OrderService {
 
-    private final OrderRepository orderRepository;
+    private final PedidoRepository pedidoRepository;
 
-    public OrderService(OrderRepository orderRepository) {
-        this.orderRepository = orderRepository;
+    public Pedido getOrder(Long id) {
+        return pedidoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + id));
     }
 
-    public Pedido getOrder(final Long id) {
-        final Optional<Pedido> order = orderRepository.findById(id);
-        return order.orElseThrow(() -> new ResourceNotFoundException(
-                "Pedido não encontrado: " + id,
-                this.getClass().getSimpleName())
-        );
+    public void deleteOrder(Long id) {
+        Pedido order = getOrder(id);
+        pedidoRepository.delete(order);
     }
-
-    public Pedido saveOrder(final Pedido orderEntity) {
-        return orderRepository.save(orderEntity);
-    }
-
-    public void deleteOrder(final Long id) {
-        orderRepository.deleteById(id);
-    }
-
 }

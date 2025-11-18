@@ -23,7 +23,7 @@ public enum CategoryEnum {
                 return category;
             }
         }
-        throw new ResourceNotFoundException("Categoria inexistente: " + categoria, CategoryEnum.class.getSimpleName());
+        // ✅ CORREÇÃO: Apenas 1 parâmetro para ResourceNotFoundException
+        throw new ResourceNotFoundException("Categoria inexistente: " + categoria);
     }
-
 }

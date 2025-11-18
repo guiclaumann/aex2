@@ -28,5 +28,4 @@ public record OrderDtoV1(
                 order.getValor()
         );
     }
-
 }

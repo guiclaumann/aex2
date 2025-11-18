@@ -25,7 +25,7 @@ public class GlobalControllerExceptionHandler {
                 HttpStatus.NOT_FOUND.value(),
                 HttpStatus.NOT_FOUND.getReasonPhrase(),
                 request.getRequestURI(),
-                ex.getThrownByClass(),
+                ex.getClass().getSimpleName(),  // ✅ CORREÇÃO: Use a classe da exceção
                 ex.getMessage(),
                 LocalDateTime.now()
         );
@@ -56,5 +56,4 @@ public class GlobalControllerExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
-
 }

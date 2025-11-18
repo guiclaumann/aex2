@@ -39,20 +39,24 @@ export default function Menu() {
       try {
         setLoading(true);
         const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
-        const response = await fetch(
-          `${apiUrl}/v1/product`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
+        console.log("🔍 Buscando produtos em:", `${apiUrl}/v1/product`);
+        
+        const response = await fetch(`${apiUrl}/v1/product`, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
 
+        console.log("📡 Status da resposta:", response.status);
+        
         if (!response.ok) {
-          throw new Error("Erro ao carregar produtos");
+          const errorText = await response.text();
+          console.error("❌ Erro na resposta:", errorText);
+          throw new Error(`Erro ${response.status}: ${errorText || 'Falha ao carregar produtos'}`);
         }
 
         const data = await response.json();
+        console.log("✅ Produtos carregados:", data);
         setProdutos(data);
         
         // Inicializar quantidades
@@ -64,8 +68,9 @@ export default function Menu() {
         
         setError(null);
       } catch (err) {
-        console.error("Erro ao carregar produtos:", err);
+        console.error("❌ Erro ao carregar produtos:", err);
         setError("Não foi possível carregar os produtos. Tente novamente.");
+        toast.error("Erro ao carregar produtos");
       } finally {
         setLoading(false);
       }
@@ -111,12 +116,15 @@ export default function Menu() {
     setCarrinho((prev) => {
       const itemExistente = prev.find((item) => item.produto.id === produto.id);
       if (itemExistente) {
-        return prev.map((item) =>
+        const novoCarrinho = prev.map((item) =>
           item.produto.id === produto.id
             ? { ...item, quantidade: item.quantidade + quantidade }
             : item
         );
+      
+        return novoCarrinho;
       }
+      
       return [...prev, { produto, quantidade }];
     });
     
@@ -160,6 +168,26 @@ export default function Menu() {
     return agrupado;
   };
 
+  // 🔧 CORREÇÃO: Função para testar a API manualmente
+  const testarAPI = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+      console.log("🧪 TESTE: Conectando com API...");
+      
+      const response = await fetch(`${apiUrl}/v1/product`);
+      console.log("🧪 TESTE - Status:", response.status);
+      console.log("🧪 TESTE - Headers:", response.headers);
+      
+      const data = await response.json();
+      console.log("🧪 TESTE - Dados recebidos:", data);
+      
+     
+    } catch (error) {
+      console.error("🧪 TESTE - Erro:", error);
+      toast.error("Falha ao conectar com API");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -171,6 +199,16 @@ export default function Menu() {
               <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
             </div>
           </Link>
+
+          {/* 🔧 BOTÃO DE TESTE - REMOVA DEPOIS */}
+          <Button 
+            onClick={testarAPI} 
+            variant="outline" 
+            size="sm"
+            className="mr-4"
+          >
+            Testar API
+          </Button>
 
           {/* Carrinho e Favoritos */}
           <div className="flex items-center gap-4">
@@ -198,25 +236,38 @@ export default function Menu() {
         </div>
       </header>
 
-      {/* Main Content - Com margem inferior para o carrinho */}
+      {/* Main Content */}
       <main className="container mx-auto px-4 py-8 mb-24">
         <h2 className="text-3xl font-bold text-gray-900 mb-8">Menu</h2>
 
         {loading && (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+            <p className="ml-4 text-gray-600">Carregando produtos...</p>
           </div>
         )}
 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8">
-            {error}
+            <p className="font-semibold">Erro ao carregar produtos</p>
+            <p className="text-sm">{error}</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="outline" 
+              size="sm" 
+              className="mt-2"
+            >
+              Tentar Novamente
+            </Button>
           </div>
         )}
 
         {!loading && !error && produtos.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-600 text-lg">Nenhum produto disponível no momento.</p>
+            <p className="text-gray-600 text-lg mb-4">Nenhum produto disponível no momento.</p>
+            <p className="text-sm text-gray-500">
+              Verifique se o backend está rodando em http://localhost:8080
+            </p>
           </div>
         )}
 
@@ -224,10 +275,10 @@ export default function Menu() {
           <div className="space-y-8">
             {Object.entries(agruparPorCategoria()).map(([categoria, prods]) => (
               <div key={categoria}>
-                <h3 className="text-2x1 font-bold text-gray-900 mb-4 capitalize">
+                <h3 className="text-2xl font-bold text-gray-900 mb-4 capitalize">
                   {categoria}
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-60">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {prods.map((produto) => {
                     const quantidadeNoCarrinho = getQuantidadeNoCarrinho(produto.id);
                     const quantidadeSelecionada = quantidades[produto.id] || 1;
@@ -235,73 +286,73 @@ export default function Menu() {
                     return (                   
                       <div
                         key={produto.id}
-                        className="bg-white rounded shadow-md hover:shadow-lg transition-shadow overflow-hidden w-[280px] h-[300px] md:h-[340px] lg:h-[260px] flex flex-col mx-auto"
+                        className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden"
                       >
-                      <div className="p-4 flex flex-col h-full">
-                      <div className="flex-1">
-                      <div className="flex items-start justify-between mb-3">
-                        <h4 className="text-lg font-semibold text-gray-900 flex-1">
-                          {produto.nome}
-                        </h4>
-                      <button
-                        onClick={() => toggleFavorito(produto)}
-                        className="flex-shrink-0 ml-2 p-2 hover:bg-red-50 rounded-full transition-colors"
-                      >
-                      <Heart
-                        className={`h-5 w-5 ${
-                        isFavorito(produto.id)
-                        ? "text-red-500 fill-red-500"
-                        : "text-gray-300"
-                       }`}
-                     />
-                   </button>
-                  </div>
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-                  {produto.descricao}
-                </p>
-             </div>
+                        <div className="p-4 flex flex-col h-full">
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-3">
+                              <h4 className="text-lg font-semibold text-gray-900 flex-1">
+                                {produto.nome}
+                              </h4>
+                              <button
+                                onClick={() => toggleFavorito(produto)}
+                                className="flex-shrink-0 ml-2 p-2 hover:bg-red-50 rounded-full transition-colors"
+                              >
+                                <Heart
+                                  className={`h-5 w-5 ${
+                                    isFavorito(produto.id)
+                                      ? "text-red-500 fill-red-500"
+                                      : "text-gray-300"
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                              {produto.descricao}
+                            </p>
+                          </div>
 
-              {/* Preço e Controles - Layout Compacto */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xl font-bold text-orange-600">
-                    R$ {(produto.preco_venda || 0).toFixed(2)}
-                  </span>
-        
-                  {/* Controle de Quantidade */}
-                  <div className="flex items-center gap-3 bg-gray-100 rounded-lg px-3 py-1">
-                    <button
-                      onClick={() => diminuirQuantidade(produto.id)}
-                      className="text-gray-600 hover:text-orange-600 transition-colors disabled:opacity-30"
-                      disabled={quantidadeSelecionada <= 1}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <span className="font-bold text-gray-900 min-w-6 text-center text-base">
-                      {quantidadeSelecionada}
-                    </span>
-                    <button
-                      onClick={() => aumentarQuantidade(produto.id)}
-                      className="text-gray-600 hover:text-orange-600 transition-colors"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
+                          {/* Preço e Controles */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xl font-bold text-orange-600">
+                                R$ {(produto.preco_venda || 0).toFixed(2)}
+                              </span>
+                      
+                              {/* Controle de Quantidade */}
+                              <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-2 py-1">
+                                <button
+                                  onClick={() => diminuirQuantidade(produto.id)}
+                                  className="text-gray-600 hover:text-orange-600 transition-colors disabled:opacity-30"
+                                  disabled={quantidadeSelecionada <= 1}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </button>
+                                <span className="font-bold text-gray-900 min-w-6 text-center text-sm">
+                                  {quantidadeSelecionada}
+                                </span>
+                                <button
+                                  onClick={() => aumentarQuantidade(produto.id)}
+                                  className="text-gray-600 hover:text-orange-600 transition-colors"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
 
-                {/* Botão Adicionar */}
-                <Button
-                 onClick={() => adicionarAoCarrinho(produto)}
-                 className="w-full bg-orange-600 hover:bg-orange-700 flex items-center justify-center gap-2 py-2 text-base font-semibold"
-                >
-                  <Plus className="h-4 w-4" />
-                  Adicionar R$ {(produto.preco_venda * quantidadeSelecionada).toFixed(2)}
-                </Button>
-              </div>
-            </div>
-          </div>   
-                   );
-                    })}
+                            {/* Botão Adicionar */}
+                            <Button
+                              onClick={() => adicionarAoCarrinho(produto)}
+                              className="w-full bg-orange-600 hover:bg-orange-700 flex items-center justify-center gap-2 py-2 text-sm font-semibold"
+                            >
+                              <Plus className="h-4 w-4" />
+                              Adicionar R$ {(produto.preco_venda * quantidadeSelecionada).toFixed(2)}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>   
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -309,7 +360,7 @@ export default function Menu() {
         )}
       </main>
 
-      {/* Carrinho Flutuante - Agora não tampa os produtos */}
+      {/* Carrinho Flutuante */}
       {carrinho.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-20">
           <div className="container mx-auto px-4 py-4">
@@ -337,7 +388,7 @@ export default function Menu() {
                   className="flex items-center gap-2 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
                 >
                   <Trash2 className="h-4 w-4" />
-                  Limpar Carrinho
+                  Limpar
                 </Button>
                 <Link href="/pagamento">
                   <Button className="bg-orange-600 hover:bg-orange-700">

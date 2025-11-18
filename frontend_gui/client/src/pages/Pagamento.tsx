@@ -5,6 +5,7 @@ import { Trash2, Plus, Minus } from "lucide-react";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { pedidoService } from "@/services/pedidoService"; 
 
 interface Produto {
   id: number;
@@ -19,24 +20,12 @@ interface CarrinhoItem {
   quantidade: number;
 }
 
-interface ItemPedido {
-  produtoId: number;
-  quantidade: number;
-}
-
-interface PedidoRequest {
-  clienteId: number;
-  itens: ItemPedido[];
-  total: number;
-}
-
 export default function Pagamento() {
   const [carrinho, setCarrinho] = useState<CarrinhoItem[]>([]);
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [clienteNome, setClienteNome] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [pedidoId, setPedidoId] = useState<number | null>(null);
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
 
   // Recuperar carrinho e cliente do localStorage
   useEffect(() => {
@@ -56,83 +45,50 @@ export default function Pagamento() {
     setClienteNome(clienteNomeSalvo);
   }, []);
 
-  // Atualizar localStorage quando carrinho mudar
-  useEffect(() => {
-    if (carrinho.length > 0) {
-      localStorage.setItem("carrinho", JSON.stringify(carrinho));
-    }
-  }, [carrinho]);
-
   const totalPedido = carrinho.reduce(
     (total, item) => total + (item.produto.preco_venda || 0) * item.quantidade,
     0
   );
 
   const removerDoCarrinho = (produtoId: number) => {
-    setCarrinho((prev) =>
-      prev
-        .map((item) =>
-          item.produto.id === produtoId
-            ? { ...item, quantidade: item.quantidade - 1 }
-            : item
-        )
-        .filter((item) => item.quantidade > 0)
-    );
+    const novoCarrinho = carrinho
+      .map((item) =>
+        item.produto.id === produtoId
+          ? { ...item, quantidade: item.quantidade - 1 }
+          : item
+      )
+      .filter((item) => item.quantidade > 0);
+    
+    setCarrinho(novoCarrinho);
+    localStorage.setItem("carrinho", JSON.stringify(novoCarrinho));
   };
 
   const atualizarQuantidade = (produtoId: number, novaQuantidade: number) => {
     if (novaQuantidade <= 0) {
       removerDoCarrinho(produtoId);
     } else {
-      setCarrinho((prev) =>
-        prev.map((item) =>
-          item.produto.id === produtoId
-            ? { ...item, quantidade: novaQuantidade }
-            : item
-        )
+      const novoCarrinho = carrinho.map((item) =>
+        item.produto.id === produtoId
+          ? { ...item, quantidade: novaQuantidade }
+          : item
       );
+      
+      setCarrinho(novoCarrinho);
+      localStorage.setItem("carrinho", JSON.stringify(novoCarrinho));
     }
   };
 
-  const validarDadosPedido = (): { valido: boolean; erro?: string } => {
-    if (!clienteId) {
-      return { valido: false, erro: "Cliente não identificado" };
-    }
-
-    const clienteIdNum = parseInt(clienteId);
-    if (isNaN(clienteIdNum) || clienteIdNum <= 0) {
-      return { valido: false, erro: "ID do cliente inválido" };
-    }
-
-    if (carrinho.length === 0) {
-      return { valido: false, erro: "Carrinho vazio" };
-    }
-
-    // Validar cada item do carrinho
-    for (const item of carrinho) {
-      if (!item.produto.id || item.produto.id <= 0) {
-        return { valido: false, erro: "ID de produto inválido" };
-      }
-      if (item.quantidade <= 0) {
-        return { valido: false, erro: "Quantidade inválida para um produto" };
-      }
-      if (!item.produto.preco_venda || item.produto.preco_venda < 0) {
-        return { valido: false, erro: "Preço de produto inválido" };
-      }
-    }
-
-    if (totalPedido <= 0) {
-      return { valido: false, erro: "Total do pedido inválido" };
-    }
-
-    return { valido: true };
+  const removerItemCompletamente = (produtoId: number) => {
+    const novoCarrinho = carrinho.filter((item) => item.produto.id !== produtoId);
+    setCarrinho(novoCarrinho);
+    localStorage.setItem("carrinho", JSON.stringify(novoCarrinho));
+    toast.success("Item removido do carrinho");
   };
 
   const handleFinalizarPedido = async () => {
-    // Validação inicial
-    if (!clienteId) {
+    if (!clienteId || !clienteNome) {
       toast.error("Por favor, faça login ou cadastro antes de finalizar o pedido");
-      window.location.href = "/cadastro";
+      setLocation("/cadastro");
       return;
     }
 
@@ -141,102 +97,50 @@ export default function Pagamento() {
       return;
     }
 
-    // Validação detalhada
-    const validacao = validarDadosPedido();
-    if (!validacao.valido) {
-      toast.error(validacao.erro || "Dados do pedido inválidos");
-      return;
-    }
-
     try {
       setLoading(true);
 
-      // Preparar dados do pedido com validação
-      const itens: ItemPedido[] = carrinho.map((item) => ({
-        produtoId: item.produto.id,
+      // Preparar dados para o pedidoService
+      const itensPedido = carrinho.map((item) => ({
+        produtoid: item.produto.id.toString(),
+        nome: item.produto.nome,
         quantidade: item.quantidade,
+        preco: item.produto.preco_venda
       }));
 
-      const pedidoRequest: PedidoRequest = {
-        clienteId: parseInt(clienteId),
-        itens: itens,
-        total: parseFloat(totalPedido.toFixed(2)), // Garantir 2 casas decimais
-      };
+      console.log("📦 Criando pedido...");
 
-      const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+      // Usar o serviço de pedidos
+      const pedidoCriado = await pedidoService.criarPedido({
+        cliente: clienteNome,
+        clienteId: clienteId,
+        telefone: "000000000", // Você pode adicionar campo de telefone depois
+        email: "",
+        endereco: "Endereço do cliente",
+        itens: itensPedido,
+        total: totalPedido,
+        formaPagamento: "dinheiro"
+      });
+
+      console.log("✅ Pedido criado com sucesso:", pedidoCriado);
       
-      console.log("Enviando para API:", pedidoRequest);
-
-      const response = await fetch(
-        `${apiUrl}/v1/order/create_order`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(pedidoRequest),
-        }
-      );
-
-      console.log("Status da resposta:", response.status);
-
-      if (!response.ok) {
-        let errorMessage = `Erro ${response.status}: `;
-        
-        try {
-          const errorData = await response.json();
-          console.error("Erro detalhado da API:", errorData);
-          
-          // Tentar extrair mensagem de erro mais específica
-          if (errorData.message) {
-            errorMessage += errorData.message;
-          } else if (errorData.error) {
-            errorMessage += errorData.error;
-          } else {
-            errorMessage += "Falha ao criar pedido";
-          }
-        } catch (parseError) {
-          // Se não conseguir parsear como JSON, usar text
-          const errorText = await response.text();
-          errorMessage += errorText || response.statusText;
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const pedido = await response.json();
-      console.log("Pedido criado com sucesso:", pedido);
-      
-      // Limpar carrinho e redirecionar
+      // Limpar carrinho
       localStorage.removeItem("carrinho");
       setCarrinho([]);
-      toast.success("Pedido criado com sucesso!");
+      
+      toast.success(`Pedido ${pedidoCriado.numero} criado com sucesso!`);
 
-      // Redireciona para a página de acompanhamento
-      window.location.href = `/acompanhar/${pedido.id}`;
+      // Redirecionar para confirmação
+      setTimeout(() => {
+        setLocation(`/confirmacao-pedido/${pedidoCriado.numero}`);
+      }, 1000);
       
     } catch (err) {
-      console.error("Erro completo ao finalizar pedido:", err);
-      
-      // Mensagens de erro mais específicas
-      if (err instanceof Error) {
-        if (err.message.includes("500")) {
-          toast.error("Erro interno do servidor. Tente novamente em alguns instantes.");
-        } else if (err.message.includes("Network Error")) {
-          toast.error("Erro de conexão. Verifique sua internet e tente novamente.");
-        } else {
-          toast.error(err.message);
-        }
-      } else {
-        toast.error("Erro inesperado ao finalizar pedido. Tente novamente.");
-      }
+      console.error("❌ Erro ao finalizar pedido:", err);
+      toast.error("Erro ao finalizar pedido. Tente novamente.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const removerItemCompletamente = (produtoId: number) => {
-    setCarrinho((prev) => prev.filter((item) => item.produto.id !== produtoId));
   };
 
   return (
@@ -349,7 +253,6 @@ export default function Pagamento() {
                   <div className="mb-6 pb-6 border-b border-gray-200">
                     <p className="text-sm text-gray-600">Cliente</p>
                     <p className="font-semibold text-gray-900">{clienteNome}</p>
-                    <p className="text-xs text-gray-500">ID: {clienteId}</p>
                   </div>
                 )}
 
@@ -370,14 +273,6 @@ export default function Pagamento() {
                     R$ {totalPedido.toFixed(2)}
                   </span>
                 </div>
-
-                {!clienteId && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <p className="text-sm text-blue-800">
-                      Você precisa estar logado para finalizar o pedido.
-                    </p>
-                  </div>
-                )}
 
                 <Button
                   onClick={handleFinalizarPedido}

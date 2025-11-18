@@ -1,64 +1,51 @@
 package br.com.aex.service;
 
-import br.com.aex.api.dto.client.ClientDtoV1;
-import br.com.aex.api.dto.client.ClientPatchDtoV1;
 import br.com.aex.entity.Cliente;
-import br.com.aex.repository.ClientRepository;
+import br.com.aex.repository.ClienteRepository;
 import br.com.aex.service.exception.ResourceNotFoundException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class ClientService {
 
-    private final ClientRepository clientRepository;
+    private final ClienteRepository clienteRepository;
 
-    public ClientService(ClientRepository clientRepository) {
-        this.clientRepository = clientRepository;
+    // ✅ Métodos que os Controllers esperam:
+    public List<Cliente> getClients() {
+        return clienteRepository.findAll();
     }
 
-    public Cliente getClient(final Long id) {
-        final Optional<Cliente> cliente = clientRepository.findById(id);
-        return cliente.orElseThrow(() -> new ResourceNotFoundException(
-                id.toString(),
-                this.getClass().getSimpleName()
-        ));
+    public Cliente getClient(Long id) {
+        return clienteRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Client not found with id: " + id));
     }
 
-    public Cliente getClient(final String telefone) {
-        final Optional<Cliente> cliente = clientRepository.findClienteByTelefone(telefone);
-        return cliente.orElseThrow(() -> new ResourceNotFoundException(
-                String.format("Cliente com telefone [ %s ] não encontrado", telefone),
-                this.getClass().getSimpleName()
-        ));
+    public Cliente getClient(String telefone) {
+        return clienteRepository.findByTelefone(telefone)
+                .orElseThrow(() -> new ResourceNotFoundException("Client not found with telefone: " + telefone));
     }
 
-    public Cliente saveClient(final ClientDtoV1 clientDto) {
-        final Cliente clienteEntity = Cliente.builder()
-                .nome(clientDto.nome())
-                .telefone(clientDto.telefone())
-                .pedido(List.of())
-                .build();
-
-        return clientRepository.save(clienteEntity);
+    public Cliente saveClient(Cliente client) {
+        return clienteRepository.save(client);
     }
 
-    public void patchClient(final Long id, final ClientPatchDtoV1 patchDto) {
-        final Cliente client = this.getClient(id);
-
-        if (patchDto.nome() != null)
-            client.setNome(patchDto.nome());
-
-        if (patchDto.telefone() != null)
-            client.setTelefone(patchDto.telefone());
-
-        clientRepository.save(client);
+    public Cliente patchClient(Long id, Cliente clientDetails) {
+        Cliente client = getClient(id);
+        if (clientDetails.getNome() != null) {
+            client.setNome(clientDetails.getNome());
+        }
+        if (clientDetails.getTelefone() != null) {
+            client.setTelefone(clientDetails.getTelefone());
+        }
+        return clienteRepository.save(client);
     }
 
-    public void deleteClient(final Long id) {
-        clientRepository.deleteById(id);
+    public void deleteClient(Long id) {
+        Cliente client = getClient(id);
+        clienteRepository.delete(client);
     }
-
 }

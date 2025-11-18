@@ -20,9 +20,7 @@ public class CategoryService {
     public Categoria getCategory(final CategoryEnum categoryEnum) {
         final Optional<Categoria> category = categoryRepository.findCategoryByNome(categoryEnum);
         return category.orElseThrow(() -> new ResourceNotFoundException(
-                "Categoria não encontrada: " + categoryEnum.name(),
-                this.getClass().getSimpleName()
+                "Categoria não encontrada: " + categoryEnum.name()  // ✅ CORREÇÃO: Apenas 1 parâmetro
         ));
     }
-
 }

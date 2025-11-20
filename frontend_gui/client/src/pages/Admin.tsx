@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { toast } from "sonner";
 import { 
@@ -11,11 +11,9 @@ import {
   Settings,
   LogOut,
   ChefHat,
-  Clock,
-  CheckCircle,
-  XCircle,
-  ArrowRight
+  Clock
 } from "lucide-react";
+import AdminPedidos from "./AdminPedidos";
 
 interface AdminStats {
   totalPedidos: number;
@@ -28,10 +26,20 @@ interface Pedido {
   id: string;
   numero: string;
   cliente: string;
-  itens: string;
+  clienteId?: string;
+  telefone: string;
+  email?: string;
+  itens: Array<{
+    produtoid: string;
+    nome: string;
+    quantidade: number;
+    preco: number;
+  }>;
   total: number;
   status: "pendente" | "preparando" | "pronto" | "entregue" | "cancelado";
   data: string;
+  endereco?: string;
+  observacoes?: string;
 }
 
 export default function Admin() {
@@ -43,6 +51,12 @@ export default function Admin() {
   });
   const [pedidosRecentes, setPedidosRecentes] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
+  const [location] = useLocation();
+
+  // Se estiver na rota /admin/pedidos, mostra a página de pedidos
+  if (location === "/admin/pedidos") {
+    return <AdminPedidos />;
+  }
 
   useEffect(() => {
     carregarStats();
@@ -51,15 +65,28 @@ export default function Admin() {
 
   const carregarStats = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
-      
-      // Mock data - na implementação real, buscar da API
-      setStats({
-        totalPedidos: 152,
-        pedidosPendentes: 8,
-        totalProdutos: 24,
-        clientesCadastrados: 89
-      });
+      // Buscar pedidos do localStorage para calcular stats reais
+      const pedidosLocal = localStorage.getItem('pedidos');
+      if (pedidosLocal) {
+        const pedidos: Pedido[] = JSON.parse(pedidosLocal);
+        const totalPedidos = pedidos.length;
+        const pedidosPendentes = pedidos.filter(p => p.status === "pendente").length;
+        
+        setStats({
+          totalPedidos,
+          pedidosPendentes,
+          totalProdutos: 24, // Mock - você pode buscar da API
+          clientesCadastrados: 89 // Mock - você pode buscar da API
+        });
+      } else {
+        // Dados mockados caso não haja pedidos
+        setStats({
+          totalPedidos: 0,
+          pedidosPendentes: 0,
+          totalProdutos: 24,
+          clientesCadastrados: 89
+        });
+      }
     } catch (err) {
       console.error("Erro ao carregar stats:", err);
       toast.error("Erro ao carregar dados do dashboard");
@@ -68,37 +95,18 @@ export default function Admin() {
 
   const carregarPedidosRecentes = async () => {
     try {
-      // Mock data - na implementação real, buscar da API
-      const pedidosMock: Pedido[] = [
-        {
-          id: "1",
-          numero: "#154",
-          cliente: "João Silva",
-          itens: "2x Hamburguer, 1x Batata",
-          total: 45.90,
-          status: "pendente",
-          data: new Date().toISOString()
-        },
-        {
-          id: "2",
-          numero: "#153",
-          cliente: "Maria Santos",
-          itens: "1x Pizza, 2x Refri",
-          total: 38.50,
-          status: "pronto",
-          data: new Date(Date.now() - 30 * 60000).toISOString()
-        },
-        {
-          id: "3",
-          numero: "#152",
-          cliente: "Pedro Oliveira",
-          itens: "1x Milkshake, 3x Coxinha",
-          total: 27.80,
-          status: "preparando",
-          data: new Date(Date.now() - 15 * 60000).toISOString()
-        }
-      ];
-      setPedidosRecentes(pedidosMock);
+      // Buscar pedidos do localStorage
+      const pedidosLocal = localStorage.getItem('pedidos');
+      if (pedidosLocal) {
+        const pedidos: Pedido[] = JSON.parse(pedidosLocal);
+        // Pegar apenas os 3 pedidos mais recentes
+        const pedidosRecentes = pedidos
+          .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+          .slice(0, 3);
+        setPedidosRecentes(pedidosRecentes);
+      } else {
+        setPedidosRecentes([]);
+      }
     } catch (err) {
       console.error("Erro ao carregar pedidos:", err);
       toast.error("Erro ao carregar pedidos recentes");
@@ -109,24 +117,29 @@ export default function Admin() {
 
   const mudarStatusPedido = async (pedidoId: string, novoStatus: Pedido["status"]) => {
     try {
-      const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
-      
-      // Na implementação real, fazer PUT para a API
-      console.log(`Mudando pedido ${pedidoId} para status: ${novoStatus}`);
-      
-      // Atualizar estado local
-      setPedidosRecentes(prev => 
-        prev.map(pedido => 
-          pedido.id === pedidoId 
-            ? { ...pedido, status: novoStatus }
-            : pedido
-        )
-      );
+      // Atualizar no localStorage
+      const pedidosLocal = localStorage.getItem('pedidos');
+      if (pedidosLocal) {
+        const pedidos: Pedido[] = JSON.parse(pedidosLocal);
+        const pedidosAtualizados = pedidos.map(pedido =>
+          pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
+        );
+        localStorage.setItem('pedidos', JSON.stringify(pedidosAtualizados));
+        
+        // Atualizar lista local
+        setPedidosRecentes(prev => 
+          prev.map(pedido => 
+            pedido.id === pedidoId 
+              ? { ...pedido, status: novoStatus }
+              : pedido
+          )
+        );
 
-      toast.success(`Status do pedido atualizado para ${novoStatus}`);
-      
-      // Recarregar stats para atualizar contadores
-      carregarStats();
+        toast.success(`Status atualizado para ${getStatusText(novoStatus)}`);
+        
+        // Recarregar stats
+        carregarStats();
+      }
     } catch (err) {
       console.error("Erro ao atualizar status:", err);
       toast.error("Erro ao atualizar status do pedido");
@@ -335,67 +348,73 @@ export default function Admin() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-semibold text-gray-900">Pedidos Recentes</h3>
             <Link href="/admin/pedidos">
-              <Button variant="outline" size="sm" className="flex items-center gap-2">
-                Ver Todos
-                <ArrowRight className="h-4 w-4" />
+              <Button variant="outline" size="sm">
+                Ver Todos os Pedidos
               </Button>
             </Link>
           </div>
           
-          <div className="space-y-4">
-            {pedidosRecentes.map((pedido) => {
-              const nextStatus = getNextStatus(pedido.status);
-              
-              return (
-                <div key={pedido.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-2">
-                      <p className="font-medium text-gray-900">{pedido.numero}</p>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(pedido.status)}`}>
-                        {getStatusText(pedido.status)}
-                      </span>
+          {pedidosRecentes.length === 0 ? (
+            <div className="text-center py-8">
+              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">Nenhum pedido recente</p>
+              <p className="text-sm text-gray-500 mt-2">
+                Os pedidos criados aparecerão aqui automaticamente
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {pedidosRecentes.map((pedido) => {
+                const nextStatus = getNextStatus(pedido.status);
+                
+                return (
+                  <div key={pedido.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-4 mb-2">
+                        <p className="font-medium text-gray-900">{pedido.numero}</p>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(pedido.status)}`}>
+                          {getStatusText(pedido.status)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-1">
+                        <strong>Cliente:</strong> {pedido.cliente}
+                      </p>
+                      <p className="text-sm text-gray-600 mb-1">
+                        <strong>Itens:</strong> {pedido.itens.map(item => `${item.quantidade}x ${item.nome}`).join(', ')}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <strong>Total:</strong> R$ {pedido.total.toFixed(2)}
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-600 mb-1">
-                      <strong>Cliente:</strong> {pedido.cliente}
-                    </p>
-                    <p className="text-sm text-gray-600 mb-1">
-                      <strong>Itens:</strong> {pedido.itens}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <strong>Total:</strong> R$ {pedido.total.toFixed(2)}
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {nextStatus && (
-                      <Button
-                        onClick={() => mudarStatusPedido(pedido.id, nextStatus)}
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        {nextStatus === "preparando" && "Preparar"}
-                        {nextStatus === "pronto" && "Pronto"}
-                        {nextStatus === "entregue" && "Entregar"}
-                      </Button>
-                    )}
                     
-                    {pedido.status !== "cancelado" && pedido.status !== "entregue" && (
-                      <Button
-                        onClick={() => mudarStatusPedido(pedido.id, "cancelado")}
-                        variant="outline"
-                        size="sm"
-                        className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        Cancelar
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {nextStatus && (
+                        <Button
+                          onClick={() => mudarStatusPedido(pedido.id, nextStatus)}
+                          size="sm"
+                        >
+                          {nextStatus === "preparando" && "Preparar"}
+                          {nextStatus === "pronto" && "Pronto"}
+                          {nextStatus === "entregue" && "Entregar"}
+                        </Button>
+                      )}
+                      
+                      {pedido.status !== "cancelado" && pedido.status !== "entregue" && (
+                        <Button
+                          onClick={() => mudarStatusPedido(pedido.id, "cancelado")}
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          Cancelar
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </main>
     </div>

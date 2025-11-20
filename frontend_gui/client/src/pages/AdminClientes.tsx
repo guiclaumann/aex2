@@ -13,15 +13,14 @@ import {
   MapPin,
   Calendar,
   Package,
-  ShoppingCart
+  ShoppingCart,
+  Plus
 } from "lucide-react";
 
 interface Cliente {
   id: number;
   nome: string;
-  email: string;
   telefone: string;
-  endereco?: string;
   data_cadastro: string;
 }
 
@@ -47,8 +46,14 @@ export default function AdminClientes() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showPedidoModal, setShowPedidoModal] = useState(false);
+  const [showClienteModal, setShowClienteModal] = useState(false);
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
   const [carrinho, setCarrinho] = useState<Array<{nome: string, quantidade: number, preco: number}>>([]);
+
+  const [formData, setFormData] = useState({
+    nome: "",
+    telefone: ""
+  });
 
   useEffect(() => {
     carregarClientes();
@@ -67,38 +72,15 @@ export default function AdminClientes() {
         // Buscar de clientes salvos no localStorage do login
         const clienteId = localStorage.getItem('clienteId');
         const clienteNome = localStorage.getItem('clienteNome');
-        const clienteEmail = localStorage.getItem('clienteEmail');
         
         if (clienteId && clienteNome) {
           const clienteManual: Cliente = {
             id: parseInt(clienteId),
             nome: clienteNome,
-            email: clienteEmail || "Não informado",
             telefone: "Não informado",
             data_cadastro: new Date().toISOString()
           };
           setClientes([clienteManual]);
-        } else {
-          // Mock data
-          const mockClientes: Cliente[] = [
-            {
-              id: 1,
-              nome: "João Silva",
-              email: "joao.silva@email.com",
-              telefone: "(11) 99999-9999",
-              endereco: "Rua das Flores, 123 - São Paulo, SP",
-              data_cadastro: "2024-01-15T10:00:00"
-            },
-            {
-              id: 2,
-              nome: "Maria Santos",
-              email: "maria.santos@email.com",
-              telefone: "(11) 98888-8888",
-              endereco: "Av. Paulista, 1000 - São Paulo, SP",
-              data_cadastro: "2024-01-10T14:20:00"
-            }
-          ];
-          setClientes(mockClientes);
         }
       }
     } catch (err) {
@@ -145,6 +127,42 @@ export default function AdminClientes() {
     setClienteSelecionado(cliente);
     setCarrinho([]);
     setShowPedidoModal(true);
+  };
+
+  const abrirModalCliente = () => {
+    setFormData({
+      nome: "",
+      telefone: ""
+    });
+    setShowClienteModal(true);
+  };
+
+  const handleCriarCliente = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.nome || !formData.telefone) {
+      toast.error("Nome e telefone são obrigatórios");
+      return;
+    }
+
+    const novoCliente: Cliente = {
+      id: Date.now(),
+      nome: formData.nome,
+      telefone: formData.telefone,
+      data_cadastro: new Date().toISOString()
+    };
+
+    // Salvar no localStorage
+    const clientesAtuais = [...clientes, novoCliente];
+    localStorage.setItem('clientesCadastrados', JSON.stringify(clientesAtuais));
+    setClientes(clientesAtuais);
+
+    toast.success(`Cliente ${formData.nome} criado com sucesso!`);
+    setShowClienteModal(false);
+    setFormData({
+      nome: "",
+      telefone: ""
+    });
   };
 
   const adicionarItemAoPedido = (item: {nome: string, preco: number}) => {
@@ -224,7 +242,6 @@ export default function AdminClientes() {
 
   const filteredClientes = clientes.filter(cliente =>
     cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cliente.telefone.includes(searchTerm)
   );
 
@@ -307,6 +324,13 @@ export default function AdminClientes() {
             <div className="text-sm text-gray-600 bg-orange-50 px-3 py-1 rounded-full">
               {pedidos.length} pedidos no sistema
             </div>
+            <Button
+              onClick={abrirModalCliente}
+              className="bg-orange-600 hover:bg-orange-700 flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Novo Cliente
+            </Button>
           </div>
         </div>
 
@@ -316,7 +340,7 @@ export default function AdminClientes() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por nome, email ou telefone..."
+              placeholder="Buscar por nome ou telefone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -335,14 +359,10 @@ export default function AdminClientes() {
                   {/* Header do Cliente */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 text-lg mb-2">{cliente.nome}</h3>
-                      
+                      <h3 className="font-semibold text-gray-900 text-lg mb-2">{cliente.nome}
+
+                      </h3>
                       <div className="space-y-2 text-sm text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-4 w-4" />
-                          <span>{cliente.email}</span>
-                        </div>
-                        
                         <div className="flex items-center gap-2">
                           <Phone className="h-4 w-4" />
                           <span>{cliente.telefone}</span>
@@ -401,8 +421,78 @@ export default function AdminClientes() {
               {clientes.length === 0 ? "Nenhum cliente cadastrado" : "Nenhum cliente corresponde à busca"}
             </p>
             <p className="text-sm text-gray-500 mt-2">
-              Os clientes aparecerão aqui após se cadastrarem no sistema
+              Clique em "Novo Cliente" para adicionar o primeiro cliente
             </p>
+          </div>
+        )}
+
+        {/* Modal de Criar Cliente */}
+        {showClienteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    Cadastrar Novo Cliente
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowClienteModal(false)}
+                  >
+                    ✕
+                  </Button>
+                </div>
+                
+                <form onSubmit={handleCriarCliente} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nome Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.nome}
+                      onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      required
+                      placeholder="Digite o nome do cliente"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Telefone *
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.telefone}
+                      onChange={(e) => setFormData(prev => ({ ...prev, telefone: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      required
+                      placeholder="(11) 99999-9999"
+                    />
+                  </div>
+                                    
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowClienteModal(false)}
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1 bg-orange-600 hover:bg-orange-700"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Criar Cliente
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         )}
 

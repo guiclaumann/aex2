@@ -1,61 +1,63 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import AdminRoute from "./components/AdminRoute";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import AcompanharPedido from "./pages/AcompanharPedido";
-import Admin from "./pages/Admin";
-import AdminLogin from "./pages/admin/Login";
-import AdminPedidos from "./pages/admin/Pedidos";
-import AdminProdutos from "./pages/admin/Produtos";
-import Cadastro from "./pages/Cadastro";
-import Favoritos from "./pages/Favoritos";
-import Home from "./pages/Home";
-import Menu from "./pages/Menu";
-import Pagamento from "./pages/Pagamento";
+// src/App.tsx
+import { Switch, Route } from "wouter";
+import { lazy, Suspense } from "react";
 
-function Router() {
+// Pages
+import Home from "@/pages/Home";
+import Menu from "@/pages/Menu";
+import Cadastro from "@/pages/Cadastro";
+import Pagamento from "@/pages/Pagamento";
+import ConfirmacaoPedido from "@/pages/ConfirmacaoPedido";
+
+// Admin Pages
+import Admin from "@/pages/Admin";
+import AdminPedidos from "@/pages/AdminPedidos";
+import AdminLogin from "@/pages/AdminLogin";
+import AdminProdutos from "./pages/AdminProdutos";
+import AdminClientes from "@/pages/AdminClientes";
+
+
+// Loading component
+function LoadingSpinner() {
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/menu"} component={Menu} />
-      <Route path={"/cadastro"} component={Cadastro} />
-      <Route path={"/pagamento"} component={Pagamento} />
-      <Route path={"/acompanhar/:pedidoId"} component={AcompanharPedido} />
-      <Route path={"/favoritos"} component={Favoritos} />
-      
-      {/* 🔧 ROTAS DO ADMIN - MOVER PARA CIMA */}
-      <Route path="/admin/login" component={AdminLogin} />
-      <Route path="/admin">
-        <AdminRoute>
-          <Route path="/" component={Admin} />
-          <Route path="/produtos" component={AdminProdutos} />
-          <Route path="/pedidos" component={AdminPedidos} />
-        </AdminRoute>
-      </Route>
-      
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route - DEVE SER SEMPRE A ÚLTIMA */}
-      <Route component={NotFound} />
-    </Switch>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+    </div>
   );
 }
 
 function App() {
   return (
-    <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <Suspense fallback={<LoadingSpinner />}>
+      <Switch>
+        {/* Rotas públicas */}
+        <Route path="/" component={Home} />
+        <Route path="/menu" component={Menu} />
+        <Route path="/cadastro" component={Cadastro} />
+        <Route path="/pagamento" component={Pagamento} />
+        <Route path="/confirmacao-pedido/:numero" component={ConfirmacaoPedido} />
+        
+        {/* Rotas administrativas */}
+        <Route path="/admin" component={Admin} />
+        <Route path="/admin/pedidos" component={AdminPedidos} />
+        <Route path="/admin/login" component={AdminLogin} />
+        <Route path="/admin/produtos" component={AdminProdutos} />
+        <Route path="/admin/clientes" component={AdminClientes} />
+        
+        {/* 404 */}
+        <Route>
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-center">
+              <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
+              <p className="text-gray-600 mb-8">Página não encontrada</p>
+              <a href="/" className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700">
+                Voltar para Home
+              </a>
+            </div>
+          </div>
+        </Route>
+      </Switch>
+    </Suspense>
   );
 }
 

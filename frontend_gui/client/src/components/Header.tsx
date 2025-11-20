@@ -82,17 +82,6 @@ export default function Header({
           )}
 
           {/* Ícones de Favoritos e Carrinho */}
-          <Link href="/favoritos">
-            <div className="relative cursor-pointer hover:opacity-80 transition-opacity">
-              <Heart className="h-6 w-6 text-orange-600" />
-              {favoritos.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                  {favoritos.length}
-                </span>
-              )}
-            </div>
-          </Link>
-
           {showCarrinho && (
             <Link href="/pagamento">
               <div className="relative cursor-pointer hover:opacity-80 transition-opacity">

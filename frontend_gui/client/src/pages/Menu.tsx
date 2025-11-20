@@ -354,18 +354,6 @@ export default function Menu() {
                               <h4 className="text-lg font-semibold text-gray-900 flex-1">
                                 {produto.nome}
                               </h4>
-                              <button
-                                onClick={() => toggleFavorito(produto)}
-                                className="flex-shrink-0 ml-2 p-2 hover:bg-red-50 rounded-full transition-colors"
-                              >
-                                <Heart
-                                  className={`h-5 w-5 ${
-                                    isFavorito(produto.id)
-                                      ? "text-red-500 fill-red-500"
-                                      : "text-gray-300"
-                                  }`}
-                                />
-                              </button>
                             </div>
                             <p className="text-gray-600 text-sm mb-4 line-clamp-2">
                               {produto.descricao}

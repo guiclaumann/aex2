@@ -40,7 +40,7 @@ function App() {
         <Route path="/pagamento" component={Pagamento} />
         <Route path="/confirmacao-pedido/:numero" component={ConfirmacaoPedido} />
         <Route path="/acompanhar-pedido/:pedidoId" component={AcompanharPedido} />
-        <Route path="/painel-pedidos" component={PainelPedidos} />
+        <Route path="/painel-pedido" component={PainelPedidos} />
 
         
         {/* Rotas administrativas */}

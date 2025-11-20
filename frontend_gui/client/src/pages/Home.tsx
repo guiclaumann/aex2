@@ -8,13 +8,6 @@ export default function Home() {
   return (
      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
           <Header />
-      <header className="bg-white shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
-          </div>
-        </div>
-      </header>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">

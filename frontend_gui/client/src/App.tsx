@@ -9,7 +9,7 @@ import Cadastro from "@/pages/Cadastro";
 import Pagamento from "@/pages/Pagamento";
 import ConfirmacaoPedido from "@/pages/ConfirmacaoPedido";
 import AcompanharPedido from "@/pages/AcompanharPedido";
-import PainelPedidos from '@/pages/PainelPedidos';
+import PainelPedidos from '@/pages/PainelPedido';
 
 // Admin Pages
 import Admin from "@/pages/Admin";
@@ -41,7 +41,6 @@ function App() {
         <Route path="/confirmacao-pedido/:numero" component={ConfirmacaoPedido} />
         <Route path="/acompanhar-pedido/:pedidoId" component={AcompanharPedido} />
         <Route path="/painel-pedido" component={PainelPedidos} />
-
         
         {/* Rotas administrativas */}
         <Route path="/admin" component={Admin} />

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertCircle, CheckCircle, Clock, Utensils, Truck, Package } from "lucide-react";
+import Header from "@/components/Header";
 
 interface PedidoItem {
   produtoid: string;
@@ -25,12 +26,6 @@ interface Pedido {
 }
 
 const statusConfig: { [key: string]: { label: string; color: string; icon: React.ReactNode; bgColor: string } } = {
-  
-  
-  
-  
-  
-  
   preparando: {
     label: "Preparando",
     color: "text-blue-700",
@@ -118,6 +113,7 @@ export default function PainelPedidos() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <Header />
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-600"></div>
@@ -129,6 +125,9 @@ export default function PainelPedidos() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header da aplicação */}
+      <Header />
+
       {/* Header do Painel */}
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-6 py-4">
@@ -151,6 +150,14 @@ export default function PainelPedidos() {
               </div>
             </div>
           </div>
+          {/* Footer */}
+          <footer className="bg-white border-t mt-8">
+            <div className="container mx-auto px-6 py-4 text-center text-gray-600">
+              <p>Painel de Visualização</p>
+              <p>Atualizado automaticamente a cada 3 segundos</p>
+              <p>Apenas leitura</p>
+            </div>
+          </footer>
         </div>
       </header>
 
@@ -307,14 +314,6 @@ export default function PainelPedidos() {
           </div>
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t mt-8">
-        <div className="container mx-auto px-6 py-4 text-center text-gray-600">
-          <p>Painel de Visualização - Atualizado automaticamente a cada 3 segundos</p>
-          <p className="text-sm mt-1">Apenas leitura - Para editar pedidos, acesse o painel administrativo</p>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -1,25 +1,36 @@
 import { Button } from "@/components/ui/button";
-import { APP_LOGO, APP_TITLE } from "@/const";
+import { APP_TITLE } from "@/const";
 import { AlertCircle, CheckCircle, Clock, Utensils, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Link, useParams } from "wouter";
+import Header from "@/components/Header";
 
+// ✅ Interface corrigida baseada no que a API realmente retorna
 interface ItemPedido {
   id: number;
   produtoId: number;
   quantidade: number;
   preco: number;
   produtoNome?: string;
+  nome?: string; // Campo alternativo que a API pode retornar
 }
 
 interface Pedido {
-  id: number;
+  id: number | string; // ✅ Aceitar tanto número quanto string
   clienteId: number;
   status: string;
   total: number;
   dataCriacao: string;
   itens: ItemPedido[];
+  // Campos alternativos que a API pode retornar
+  createdAt?: string;
+  items?: ItemPedido[];
+  orderStatus?: string;
+  // Campos para informações do cliente
+  clienteNome?: string;
+  clientName?: string;
+  nomeCliente?: string;
 }
 
 const statusConfig: { [key: string]: { label: string; color: string; icon: React.ReactNode; description: string } } = {
@@ -61,7 +72,7 @@ export default function AcompanharPedido() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Carregar dados do pedido
+  // ✅ ACEITAR QUALQUER FORMATO DE ID (numérico ou string complexa)
   useEffect(() => {
     const fetchPedido = async () => {
       if (!pedidoId) {
@@ -73,27 +84,47 @@ export default function AcompanharPedido() {
       try {
         setLoading(true);
         const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
-        const response = await fetch(
-          `${apiUrl}/v1/order/${pedidoId}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
+        
+        // ✅ USAR O ID EXATAMENTE COMO VEIO NA URL
+        const url = `${apiUrl}/v1/order/${pedidoId}`;
+        
+        console.log("🔍 Buscando pedido:", url);
+        console.log("📝 ID usado na busca:", pedidoId);
+        
+        const response = await fetch(url, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
 
+        console.log("📊 Status da resposta:", response.status);
+        
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error("Pedido não encontrado");
           }
-          throw new Error("Erro ao carregar pedido");
+          throw new Error(`Erro ${response.status} ao carregar pedido`);
         }
 
         const data = await response.json();
-        setPedido(data);
+        console.log("📦 Dados do pedido recebidos:", data);
+        
+        // ✅ Normalizar os dados para o formato esperado pelo componente
+        const pedidoNormalizado: Pedido = {
+          id: data.id || data.orderId || pedidoId, // ✅ Usar o pedidoId original se necessário
+          clienteId: data.clienteId || data.clientId || 0,
+          status: data.status || data.orderStatus || "PENDENTE",
+          total: data.total || data.amount || 0,
+          dataCriacao: data.dataCriacao || data.createdAt || data.orderDate || new Date().toISOString(),
+          itens: data.itens || data.items || data.orderItems || [],
+          clienteNome: data.clienteNome || data.clientName || data.nomeCliente || "Cliente"
+        };
+
+        console.log("✅ Pedido normalizado:", pedidoNormalizado);
+        setPedido(pedidoNormalizado);
         setError(null);
       } catch (err) {
-        console.error("Erro ao carregar pedido:", err);
+        console.error("❌ Erro ao carregar pedido:", err);
         setError(err instanceof Error ? err.message : "Não foi possível carregar os dados do pedido.");
         toast.error("Erro ao carregar pedido");
       } finally {
@@ -103,7 +134,7 @@ export default function AcompanharPedido() {
 
     fetchPedido();
 
-    // Atualizar a cada 10 segundos (reduzido para melhor performance)
+    // Atualizar a cada 10 segundos
     const interval = setInterval(fetchPedido, 10000);
     return () => clearInterval(interval);
   }, [pedidoId]);
@@ -121,22 +152,58 @@ export default function AcompanharPedido() {
 
   const statusSteps = getStatusSteps();
 
+  // ✅ Função para obter o nome do produto
+  const getProdutoNome = (item: ItemPedido) => {
+    return item.produtoNome || item.nome || `Produto #${item.produtoId}`;
+  };
+
+  // ✅ Função para obter a data formatada
+  const getDataFormatada = () => {
+    if (!pedido) return "";
+    
+    const data = pedido.dataCriacao || pedido.createdAt;
+    return new Date(data).toLocaleDateString("pt-BR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // ✅ Função para obter o nome do cliente
+  const getClienteNome = () => {
+    if (!pedido) return "";
+    return pedido.clienteNome || pedido.clientName || pedido.nomeCliente || "Cliente";
+  };
+
+  // ✅ Função para obter os itens do pedido
+  const getItensPedido = () => {
+    if (!pedido) return [];
+    return pedido.itens || pedido.items || [];
+  };
+
+  // ✅ Função para formatar o ID do pedido para exibição
+  const getPedidoDisplayId = () => {
+    if (!pedido) return pedidoId || "";
+    
+    // Se o ID for uma string complexa como "ped_timestamp_random", mostrar apenas o timestamp ou último segmento
+    if (typeof pedido.id === 'string' && pedido.id.includes('_')) {
+      const parts = pedido.id.split('_');
+      return parts[parts.length - 1]; // Pega o último segmento
+    }
+    
+    return pedido.id.toString();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm">
-          <div className="container mx-auto px-4 py-4">
-            <Link href="/">
-              <div className="flex items-center gap-3 cursor-pointer hover:opacity-80">
-                <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
-                <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
-              </div>
-            </Link>
-          </div>
-        </header>
+        <Header />
         <main className="container mx-auto px-4 py-8">
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+          <div className="flex justify-center items-center h-64 flex-col">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mb-4"></div>
+            <p className="text-gray-600">Carregando pedido #{pedidoId}...</p>
           </div>
         </main>
       </div>
@@ -146,21 +213,13 @@ export default function AcompanharPedido() {
   if (error || !pedido) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm">
-          <div className="container mx-auto px-4 py-4">
-            <Link href="/">
-              <div className="flex items-center gap-3 cursor-pointer hover:opacity-80">
-                <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
-                <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
-              </div>
-            </Link>
-          </div>
-        </header>
+        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <div className="bg-white rounded-lg shadow-md p-8 text-center">
               <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Pedido Não Encontrado</h2>
+              <p className="text-gray-600 mb-2">Pedido: #{pedidoId}</p>
               <p className="text-gray-600 mb-6">{error || "Pedido não disponível"}</p>
               <div className="space-y-3">
                 <Link href="/menu">
@@ -181,21 +240,12 @@ export default function AcompanharPedido() {
     );
   }
 
+  const itens = getItensPedido();
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/">
-            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80">
-              <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
-              <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
-            </div>
-          </Link>
-        </div>
-      </header>
+      <Header />
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <h2 className="text-3xl font-bold text-gray-900 mb-8">Acompanhar Pedido</h2>
 
@@ -206,9 +256,14 @@ export default function AcompanharPedido() {
               {/* Pedido Info */}
               <div className="mb-8 pb-8 border-b border-gray-200">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-2xl font-bold text-gray-900">
-                    Pedido #{pedido.id}
-                  </h3>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">
+                      Pedido #{getPedidoDisplayId()}
+                    </h3>
+                    <p className="text-gray-600 mt-1">
+                      Cliente: {getClienteNome()}
+                    </p>
+                  </div>
                   <div
                     className={`px-4 py-2 rounded-full font-semibold flex items-center gap-2 border ${
                       statusConfig[pedido.status]?.color || "bg-gray-100 text-gray-800"
@@ -219,14 +274,7 @@ export default function AcompanharPedido() {
                   </div>
                 </div>
                 <p className="text-gray-600">
-                  Criado em:{" "}
-                  {new Date(pedido.dataCriacao).toLocaleDateString("pt-BR", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  Criado em: {getDataFormatada()}
                 </p>
               </div>
 
@@ -292,18 +340,18 @@ export default function AcompanharPedido() {
               {/* Itens do Pedido */}
               <div className="mt-8 pt-8 border-t border-gray-200">
                 <h4 className="font-semibold text-gray-900 mb-4 text-lg">
-                  Itens do Pedido
+                  Itens do Pedido ({itens.length})
                 </h4>
                 <div className="space-y-4">
-                  {pedido.itens && pedido.itens.length > 0 ? (
-                    pedido.itens.map((item) => (
+                  {itens.length > 0 ? (
+                    itens.map((item) => (
                       <div
                         key={item.id}
                         className="flex justify-between items-center py-3 border-b border-gray-100 last:border-b-0"
                       >
                         <div>
                           <p className="font-medium text-gray-900">
-                            {item.produtoNome || `Produto #${item.produtoId}`}
+                            {getProdutoNome(item)}
                           </p>
                           <p className="text-sm text-gray-600">
                             Quantidade: {item.quantidade}

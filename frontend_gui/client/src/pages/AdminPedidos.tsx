@@ -168,7 +168,6 @@ export default function AdminPedidos() {
                 </Button>
               </Link>
               <div className="flex items-center gap-3">
-                <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
                 <div>
                   <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
                   <p className="text-sm text-gray-600">Gerenciar Pedidos</p>

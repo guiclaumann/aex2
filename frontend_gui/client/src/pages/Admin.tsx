@@ -1,182 +1,172 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { toast } from "sonner";
 import { 
-  Plus, 
-  Users, 
   Package, 
-  BarChart3, 
-  Settings,
+  Users, 
+  ShoppingCart, 
+  Clock,
+  Plus,
   LogOut,
-  ChefHat,
-  Clock
+  ArrowRight
 } from "lucide-react";
-import AdminPedidos from "./AdminPedidos";
-
-interface AdminStats {
-  totalPedidos: number;
-  pedidosPendentes: number;
-  totalProdutos: number;
-  clientesCadastrados: number;
-}
 
 interface Pedido {
   id: string;
   numero: string;
   cliente: string;
-  clienteId?: string;
   telefone: string;
-  email?: string;
+  total: number;
+  status: "pendente" | "preparando" | "pronto" | "entregue" | "cancelado";
+  data: string;
   itens: Array<{
-    produtoid: string;
     nome: string;
     quantidade: number;
     preco: number;
   }>;
-  total: number;
-  status: "pendente" | "preparando" | "pronto" | "entregue" | "cancelado";
-  data: string;
-  endereco?: string;
-  observacoes?: string;
+  tipo: "online" | "balcao";
 }
 
-export default function Admin() {
-  const [stats, setStats] = useState<AdminStats>({
-    totalPedidos: 0,
+interface Produto {
+  id: string;
+  nome: string;
+  preco: number;
+  categoria: string;
+  disponivel: boolean;
+}
+
+interface Stats {
+  totalPedidosHoje: number;
+  pedidosPendentes: number;
+  totalProdutos: number;
+  clientesCadastrados: number;
+}
+
+export default function AdminDashboard() {
+  const [stats, setStats] = useState<Stats>({
+    totalPedidosHoje: 0,
     pedidosPendentes: 0,
     totalProdutos: 0,
     clientesCadastrados: 0
   });
-  const [pedidosRecentes, setPedidosRecentes] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
-  const [location] = useLocation();
-
-  // Se estiver na rota /admin/pedidos, mostra a página de pedidos
-  if (location === "/admin/pedidos") {
-    return <AdminPedidos />;
-  }
+  const [pedidosRecentes, setPedidosRecentes] = useState<Pedido[]>([]);
 
   useEffect(() => {
-    carregarStats();
-    carregarPedidosRecentes();
+    carregarDashboard();
   }, []);
 
-  const carregarStats = async () => {
-    try {
-      // Buscar pedidos do localStorage para calcular stats reais
-      const pedidosLocal = localStorage.getItem('pedidos');
-      if (pedidosLocal) {
-        const pedidos: Pedido[] = JSON.parse(pedidosLocal);
-        const totalPedidos = pedidos.length;
-        const pedidosPendentes = pedidos.filter(p => p.status === "pendente").length;
-        
-        setStats({
-          totalPedidos,
-          pedidosPendentes,
-          totalProdutos: 24, // Mock - você pode buscar da API
-          clientesCadastrados: 89 // Mock - você pode buscar da API
-        });
-      } else {
-        // Dados mockados caso não haja pedidos
-        setStats({
-          totalPedidos: 0,
-          pedidosPendentes: 0,
-          totalProdutos: 24,
-          clientesCadastrados: 89
-        });
-      }
-    } catch (err) {
-      console.error("Erro ao carregar stats:", err);
-      toast.error("Erro ao carregar dados do dashboard");
-    }
-  };
-
-  const carregarPedidosRecentes = async () => {
+  const carregarDashboard = async () => {
     try {
       // Buscar pedidos do localStorage
       const pedidosLocal = localStorage.getItem('pedidos');
+      const produtosLocal = localStorage.getItem('produtos');
+      
+      let pedidos: Pedido[] = [];
+      let produtos: Produto[] = [];
+
       if (pedidosLocal) {
-        const pedidos: Pedido[] = JSON.parse(pedidosLocal);
-        // Pegar apenas os 3 pedidos mais recentes
-        const pedidosRecentes = pedidos
-          .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-          .slice(0, 3);
-        setPedidosRecentes(pedidosRecentes);
-      } else {
-        setPedidosRecentes([]);
+        pedidos = JSON.parse(pedidosLocal);
       }
+
+      if (produtosLocal) {
+        produtos = JSON.parse(produtosLocal);
+      }
+
+      // Calcular estatísticas reais
+      const hoje = new Date();
+      const inicioDoDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+      
+      const pedidosHoje = pedidos.filter(pedido => 
+        new Date(pedido.data) >= inicioDoDia
+      );
+
+      const pedidosPendentes = pedidos.filter(p => 
+        p.status === "pendente" || p.status === "preparando"
+      );
+
+      // Extrair clientes únicos dos pedidos
+      const clientesUnicos = new Set();
+      pedidos.forEach(pedido => {
+        const chaveCliente = `${pedido.cliente}-${pedido.telefone}`;
+        clientesUnicos.add(chaveCliente);
+      });
+
+      // Pedidos recentes (últimos 5 pedidos)
+      const pedidosOrdenados = [...pedidos]
+        .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+        .slice(0, 5);
+
+      setStats({
+        totalPedidosHoje: pedidosHoje.length,
+        pedidosPendentes: pedidosPendentes.length,
+        totalProdutos: produtos.length,
+        clientesCadastrados: clientesUnicos.size
+      });
+
+      setPedidosRecentes(pedidosOrdenados);
+
     } catch (err) {
-      console.error("Erro ao carregar pedidos:", err);
-      toast.error("Erro ao carregar pedidos recentes");
+      console.error("Erro ao carregar dashboard:", err);
+      toast.error("Erro ao carregar dados do dashboard");
+      
+      // Fallback para dados mockados em caso de erro
+      setStats({
+        totalPedidosHoje: 5,
+        pedidosPendentes: 2,
+        totalProdutos: 24,
+        clientesCadastrados: 89
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const mudarStatusPedido = async (pedidoId: string, novoStatus: Pedido["status"]) => {
-    try {
-      // Atualizar no localStorage
-      const pedidosLocal = localStorage.getItem('pedidos');
-      if (pedidosLocal) {
-        const pedidos: Pedido[] = JSON.parse(pedidosLocal);
-        const pedidosAtualizados = pedidos.map(pedido =>
-          pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
-        );
-        localStorage.setItem('pedidos', JSON.stringify(pedidosAtualizados));
-        
-        // Atualizar lista local
-        setPedidosRecentes(prev => 
-          prev.map(pedido => 
-            pedido.id === pedidoId 
-              ? { ...pedido, status: novoStatus }
-              : pedido
-          )
-        );
+  const formatarMoeda = (valor: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(valor);
+  };
 
-        toast.success(`Status atualizado para ${getStatusText(novoStatus)}`);
-        
-        // Recarregar stats
-        carregarStats();
-      }
-    } catch (err) {
-      console.error("Erro ao atualizar status:", err);
-      toast.error("Erro ao atualizar status do pedido");
+  const formatarDataHora = (data: string) => {
+    return new Date(data).toLocaleString('pt-BR');
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "pendente":
+        return "bg-yellow-100 text-yellow-800";
+      case "preparando":
+        return "bg-blue-100 text-blue-800";
+      case "pronto":
+        return "bg-green-100 text-green-800";
+      case "entregue":
+        return "bg-gray-100 text-gray-800";
+      case "cancelado":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
-  const getStatusColor = (status: Pedido["status"]) => {
-    const colors = {
-      pendente: "text-orange-600 bg-orange-50",
-      preparando: "text-blue-600 bg-blue-50",
-      pronto: "text-green-600 bg-green-50",
-      entregue: "text-gray-600 bg-gray-50",
-      cancelado: "text-red-600 bg-red-50"
-    };
-    return colors[status];
-  };
-
-  const getStatusText = (status: Pedido["status"]) => {
-    const texts = {
-      pendente: "Pendente",
-      preparando: "Preparando",
-      pronto: "Pronto",
-      entregue: "Entregue",
-      cancelado: "Cancelado"
-    };
-    return texts[status];
-  };
-
-  const getNextStatus = (currentStatus: Pedido["status"]): Pedido["status"] | null => {
-    const flow: Record<Pedido["status"], Pedido["status"] | null> = {
-      pendente: "preparando",
-      preparando: "pronto",
-      pronto: "entregue",
-      entregue: null,
-      cancelado: null
-    };
-    return flow[currentStatus];
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "pendente":
+        return "Pendente";
+      case "preparando":
+        return "Preparando";
+      case "pronto":
+        return "Pronto";
+      case "entregue":
+        return "Entregue";
+      case "cancelado":
+        return "Cancelado";
+      default:
+        return status;
+    }
   };
 
   const handleLogout = () => {
@@ -185,67 +175,9 @@ export default function Admin() {
     window.location.href = "/admin/login";
   };
 
-  const cards = [
-    {
-      title: "Pedidos Hoje",
-      value: stats.totalPedidos,
-      icon: Package,
-      color: "bg-blue-500",
-      link: "/admin/pedidos"
-    },
-    {
-      title: "Pendentes",
-      value: stats.pedidosPendentes,
-      icon: Clock,
-      color: "bg-orange-500",
-      link: "/admin/pedidos"
-    },
-    {
-      title: "Produtos",
-      value: stats.totalProdutos,
-      icon: ChefHat,
-      color: "bg-green-500",
-      link: "/admin/produtos"
-    },
-    {
-      title: "Clientes",
-      value: stats.clientesCadastrados,
-      icon: Users,
-      color: "bg-purple-500",
-      link: "/admin/clientes"
-    }
-  ];
-
-  const quickActions = [
-    {
-      title: "Gerenciar Produtos",
-      description: "Adicionar, editar ou remover produtos",
-      icon: ChefHat,
-      link: "/admin/produtos",
-      color: "text-green-600 bg-green-50"
-    },
-    {
-      title: "Ver Pedidos",
-      description: "Acompanhar e atualizar pedidos",
-      icon: Package,
-      link: "/admin/pedidos",
-      color: "text-blue-600 bg-blue-50"
-    },
-    {
-      title: "Relatórios",
-      description: "Visualizar métricas e relatórios",
-      icon: BarChart3,
-      link: "/admin/relatorios",
-      color: "text-purple-600 bg-purple-50"
-    },
-    {
-      title: "Configurações",
-      description: "Configurações do sistema",
-      icon: Settings,
-      link: "/admin/configuracoes",
-      color: "text-gray-600 bg-gray-50"
-    }
-  ];
+  const handleNovoPedido = () => {
+    window.location.href = "/admin/pedidos/novo";
+  };
 
   if (loading) {
     return (
@@ -268,14 +200,18 @@ export default function Admin() {
               <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
               <div>
                 <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
-                <p className="text-sm text-gray-600">Painel Administrativo</p>
+                <p className="text-sm text-gray-600">Dashboard Administrativo</p>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">
-                Bem-vindo, Admin
-              </span>
+              <Button
+                onClick={handleNovoPedido}
+                className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700"
+              >
+                <Plus className="h-4 w-4" />
+                Novo Pedido
+              </Button>
               <Button
                 onClick={handleLogout}
                 variant="outline"
@@ -292,129 +228,184 @@ export default function Admin() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
-          <p className="text-gray-600 mt-2">
-            Visão geral do seu restaurante
-          </p>
-        </div>
-
-        {/* Stats Cards */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {cards.map((card, index) => {
-            const Icon = card.icon;
-            return (
-              <Link key={index} href={card.link}>
-                <div className="bg-white rounded-lg shadow-sm border p-6 cursor-pointer hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">{card.title}</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
-                    </div>
-                    <div className={`${card.color} p-3 rounded-full`}>
-                      <Icon className="h-6 w-6 text-white" />
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {quickActions.map((action, index) => {
-            const Icon = action.icon;
-            return (
-              <Link key={index} href={action.link}>
-                <div className="bg-white rounded-lg shadow-sm border p-6 cursor-pointer hover:shadow-md transition-shadow">
-                  <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-lg ${action.color}`}>
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 text-lg">{action.title}</h3>
-                      <p className="text-gray-600 mt-1">{action.description}</p>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Pedidos Recentes com Controles de Status */}
-        <div className="mt-8 bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold text-gray-900">Pedidos Recentes</h3>
-            <Link href="/admin/pedidos">
-              <Button variant="outline" size="sm">
-                Ver Todos os Pedidos
-              </Button>
-            </Link>
-          </div>
-          
-          {pedidosRecentes.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">Nenhum pedido recente</p>
-              <p className="text-sm text-gray-500 mt-2">
-                Os pedidos criados aparecerão aqui automaticamente
-              </p>
+          {/* Pedidos Hoje */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pedidos Hoje</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {stats.totalPedidosHoje}
+                </p>
+                <p className="text-sm text-green-600 mt-1">
+                  +{Math.round((stats.totalPedidosHoje / 30) * 100)}% este mês
+                </p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-full">
+                <ShoppingCart className="h-6 w-6 text-green-600" />
+              </div>
             </div>
-          ) : (
+          </div>
+
+          {/* Pendentes */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pendentes</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {stats.pedidosPendentes}
+                </p>
+                <p className="text-sm text-orange-600 mt-1">
+                  Necessitam atenção
+                </p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-full">
+                <Clock className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Produtos */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Produtos</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {stats.totalProdutos}
+                </p>
+                <p className="text-sm text-blue-600 mt-1">
+                  No cardápio
+                </p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-full">
+                <Package className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          {/* Clientes */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Clientes</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {stats.clientesCadastrados}
+                </p>
+                <p className="text-sm text-purple-600 mt-1">
+                  Cadastrados no sistema
+                </p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-full">
+                <Users className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Pedidos Recentes */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">Pedidos Recentes</h2>
+              <Link href="/admin/pedidos">
+                <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                  Ver todos
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+
             <div className="space-y-4">
-              {pedidosRecentes.map((pedido) => {
-                const nextStatus = getNextStatus(pedido.status);
-                
-                return (
-                  <div key={pedido.id} className="flex items-center justify-between py-3 border-b last:border-b-0">
+              {pedidosRecentes.length === 0 ? (
+                <div className="text-center py-8">
+                  <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">Nenhum pedido recente</p>
+                  <Button 
+                    onClick={handleNovoPedido}
+                    className="mt-4 flex items-center gap-2 mx-auto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Criar Primeiro Pedido
+                  </Button>
+                </div>
+              ) : (
+                pedidosRecentes.map((pedido) => (
+                  <div key={pedido.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                     <div className="flex-1">
-                      <div className="flex items-center gap-4 mb-2">
-                        <p className="font-medium text-gray-900">{pedido.numero}</p>
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-medium text-gray-900">{pedido.numero}</span>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(pedido.status)}`}>
                           {getStatusText(pedido.status)}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 mb-1">
-                        <strong>Cliente:</strong> {pedido.cliente}
-                      </p>
-                      <p className="text-sm text-gray-600 mb-1">
-                        <strong>Itens:</strong> {pedido.itens.map(item => `${item.quantidade}x ${item.nome}`).join(', ')}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        <strong>Total:</strong> R$ {pedido.total.toFixed(2)}
-                      </p>
+                      <p className="text-sm text-gray-600">{pedido.cliente}</p>
+                      <p className="text-sm text-gray-500">{formatarDataHora(pedido.data)}</p>
                     </div>
-                    
-                    <div className="flex items-center gap-2">
-                      {nextStatus && (
-                        <Button
-                          onClick={() => mudarStatusPedido(pedido.id, nextStatus)}
-                          size="sm"
-                        >
-                          {nextStatus === "preparando" && "Preparar"}
-                          {nextStatus === "pronto" && "Pronto"}
-                          {nextStatus === "entregue" && "Entregar"}
-                        </Button>
-                      )}
-                      
-                      {pedido.status !== "cancelado" && pedido.status !== "entregue" && (
-                        <Button
-                          onClick={() => mudarStatusPedido(pedido.id, "cancelado")}
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 border-red-200 hover:bg-red-50"
-                        >
-                          Cancelar
-                        </Button>
-                      )}
+                    <div className="text-right">
+                      <p className="font-semibold text-gray-900">{formatarMoeda(pedido.total)}</p>
+                      <p className="text-sm text-gray-600 capitalize">{pedido.tipo}</p>
                     </div>
                   </div>
-                );
-              })}
+                ))
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Ações Rápidas */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">Ações Rápidas</h2>
+            
+            <div className="grid grid-cols-1 gap-4">
+              <Link href="/admin/pedidos">
+                <Button variant="outline" className="w-full justify-start h-14 text-left p-4">
+                  <div className="flex items-center gap-3">
+                    <ShoppingCart className="h-5 w-5 text-orange-600" />
+                    <div>
+                      <p className="font-medium">Gerenciar Pedidos</p>
+                      <p className="text-sm text-gray-600">Ver e atualizar todos os pedidos</p>
+                    </div>
+                  </div>
+                </Button>
+              </Link>
+
+              <Link href="/admin/produtos">
+                <Button variant="outline" className="w-full justify-start h-14 text-left p-4">
+                  <div className="flex items-center gap-3">
+                    <Package className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="font-medium">Gerenciar Produtos</p>
+                      <p className="text-sm text-gray-600">Adicionar ou editar produtos</p>
+                    </div>
+                  </div>
+                </Button>
+              </Link>
+
+              <Link href="/admin/clientes">
+                <Button variant="outline" className="w-full justify-start h-14 text-left p-4">
+                  <div className="flex items-center gap-3">
+                    <Users className="h-5 w-5 text-purple-600" />
+                    <div>
+                      <p className="font-medium">Gerenciar Clientes</p>
+                      <p className="text-sm text-gray-600">Ver lista de clientes</p>
+                    </div>
+                  </div>
+                </Button>
+              </Link>
+
+              <Link href="/admin/relatorios">
+                <Button variant="outline" className="w-full justify-start h-14 text-left p-4">
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-5 w-5 text-green-600" />
+                    <div>
+                      <p className="font-medium">Relatórios</p>
+                      <p className="text-sm text-gray-600">Analisar vendas e performance</p>
+                    </div>
+                  </div>
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
       </main>
     </div>

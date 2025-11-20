@@ -50,7 +50,6 @@ export default function Favoritos() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80">
-              <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
               <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
             </div>
           </Link>

@@ -2,15 +2,15 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { ShoppingCart, User, Clock, Menu as MenuIcon } from "lucide-react";
+import Header from "@/components/Header";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-yellow-50">
-      {/* Header */}
+     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
+          <Header />
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
             <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function Home() {
           </Link>
 
           {/* Acompanhar Pedido Card */}
-          <Link href="/acompanhar/1">
+          <Link href="/painel-pedido">
             <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6 cursor-pointer h-full">
               <div className="flex flex-col items-center gap-4">
                 <div className="bg-purple-100 p-4 rounded-full">

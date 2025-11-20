@@ -1,27 +1,29 @@
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
-import { APP_LOGO, APP_TITLE } from "@/const";
-import { toast } from "sonner";
-import { 
-  Search,
-  Users,
-  LogOut,
-  ArrowLeft,
-  Mail,
-  Phone,
-  MapPin,
-  Calendar,
-  Package,
-  ShoppingCart,
-  Plus
+import { APP_TITLE } from "@/const";
+import {
+    ArrowLeft,
+    Calendar,
+    Edit,
+    Phone,
+    Plus,
+    Save,
+    Search,
+    Trash2,
+    Users,
+    X
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Link } from "wouter";
 
 interface Cliente {
-  id: number;
+  id: string;
   nome: string;
   telefone: string;
-  data_cadastro: string;
+  totalPedidos: number;
+  totalGasto: number;
+  primeiroPedido: string;
+  ultimoPedido: string;
 }
 
 interface Pedido {
@@ -40,56 +42,26 @@ interface Pedido {
   tipo: "online" | "balcao";
 }
 
+interface FormCliente {
+  nome: string;
+  telefone: string;
+}
+
 export default function AdminClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showPedidoModal, setShowPedidoModal] = useState(false);
-  const [showClienteModal, setShowClienteModal] = useState(false);
-  const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
-  const [carrinho, setCarrinho] = useState<Array<{nome: string, quantidade: number, preco: number}>>([]);
-
-  const [formData, setFormData] = useState({
+  const [showModal, setShowModal] = useState(false);
+  const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null);
+  const [formData, setFormData] = useState<FormCliente>({
     nome: "",
     telefone: ""
   });
 
   useEffect(() => {
-    carregarClientes();
     carregarPedidos();
   }, []);
-
-  const carregarClientes = async () => {
-    try {
-      // Buscar clientes do localStorage
-      const clientesSalvos = localStorage.getItem('clientesCadastrados');
-      
-      if (clientesSalvos) {
-        const clientesParseados: Cliente[] = JSON.parse(clientesSalvos);
-        setClientes(clientesParseados);
-      } else {
-        // Buscar de clientes salvos no localStorage do login
-        const clienteId = localStorage.getItem('clienteId');
-        const clienteNome = localStorage.getItem('clienteNome');
-        
-        if (clienteId && clienteNome) {
-          const clienteManual: Cliente = {
-            id: parseInt(clienteId),
-            nome: clienteNome,
-            telefone: "Não informado",
-            data_cadastro: new Date().toISOString()
-          };
-          setClientes([clienteManual]);
-        }
-      }
-    } catch (err) {
-      console.error("Erro ao carregar clientes:", err);
-      toast.error("Erro ao carregar clientes");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const carregarPedidos = async () => {
     try {
@@ -97,156 +69,191 @@ export default function AdminClientes() {
       if (pedidosSalvos) {
         const pedidosParseados: Pedido[] = JSON.parse(pedidosSalvos);
         setPedidos(pedidosParseados);
+        extrairClientes(pedidosParseados);
+      } else {
+        toast.error("Nenhum pedido encontrado");
+        setClientes([]);
       }
     } catch (err) {
       console.error("Erro ao carregar pedidos:", err);
+      toast.error("Erro ao carregar clientes");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getEstatisticasCliente = (clienteId: number) => {
-    const cliente = clientes.find(c => c.id === clienteId);
-    const pedidosCliente = pedidos.filter(pedido => 
-      pedido.cliente === cliente?.nome
-    );
+  const extrairClientes = (pedidos: Pedido[]) => {
+    const clientesMap = new Map<string, Cliente>();
 
-    const totalPedidos = pedidosCliente.length;
-    const ultimoPedido = pedidosCliente.length > 0 
-      ? pedidosCliente.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())[0]
-      : null;
+    pedidos.forEach(pedido => {
+      const chaveCliente = `${pedido.cliente}-${pedido.telefone}`;
+      
+      if (!clientesMap.has(chaveCliente)) {
+        clientesMap.set(chaveCliente, {
+          id: chaveCliente,
+          nome: pedido.cliente,
+          telefone: pedido.telefone,
+          totalPedidos: 0,
+          totalGasto: 0,
+          primeiroPedido: pedido.data,
+          ultimoPedido: pedido.data
+        });
+      }
 
-    const totalGasto = pedidosCliente.reduce((total, pedido) => total + pedido.total, 0);
+      const cliente = clientesMap.get(chaveCliente)!;
+      
+      cliente.totalPedidos += 1;
+      cliente.totalGasto += pedido.total;
+      
+      const dataPedido = new Date(pedido.data);
+      const primeiroPedido = new Date(cliente.primeiroPedido);
+      const ultimoPedido = new Date(cliente.ultimoPedido);
 
-    return {
-      totalPedidos,
-      ultimoPedido: ultimoPedido?.data,
-      totalGasto
-    };
-  };
-
-  const abrirModalPedido = (cliente: Cliente) => {
-    setClienteSelecionado(cliente);
-    setCarrinho([]);
-    setShowPedidoModal(true);
-  };
-
-  const abrirModalCliente = () => {
-    setFormData({
-      nome: "",
-      telefone: ""
+      if (dataPedido < primeiroPedido) {
+        cliente.primeiroPedido = pedido.data;
+      }
+      if (dataPedido > ultimoPedido) {
+        cliente.ultimoPedido = pedido.data;
+      }
     });
-    setShowClienteModal(true);
+
+    const clientesArray = Array.from(clientesMap.values())
+      .sort((a, b) => b.totalPedidos - a.totalPedidos);
+
+    setClientes(clientesArray);
   };
 
-  const handleCriarCliente = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.nome || !formData.telefone) {
-      toast.error("Nome e telefone são obrigatórios");
-      return;
-    }
-
-    const novoCliente: Cliente = {
-      id: Date.now(),
-      nome: formData.nome,
-      telefone: formData.telefone,
-      data_cadastro: new Date().toISOString()
-    };
-
-    // Salvar no localStorage
-    const clientesAtuais = [...clientes, novoCliente];
-    localStorage.setItem('clientesCadastrados', JSON.stringify(clientesAtuais));
-    setClientes(clientesAtuais);
-
-    toast.success(`Cliente ${formData.nome} criado com sucesso!`);
-    setShowClienteModal(false);
-    setFormData({
-      nome: "",
-      telefone: ""
-    });
-  };
-
-  const adicionarItemAoPedido = (item: {nome: string, preco: number}) => {
-    const itemExistente = carrinho.find(i => i.nome === item.nome);
-    
-    if (itemExistente) {
-      setCarrinho(carrinho.map(i => 
-        i.nome === item.nome 
-          ? { ...i, quantidade: i.quantidade + 1 }
-          : i
-      ));
-    } else {
-      setCarrinho([...carrinho, { ...item, quantidade: 1 }]);
-    }
-    
-    toast.success(`${item.nome} adicionado ao pedido`);
-  };
-
-  const removerItemDoPedido = (nome: string) => {
-    setCarrinho(carrinho.filter(item => item.nome !== nome));
-    toast.success("Item removido do pedido");
-  };
-
-  const atualizarQuantidade = (nome: string, novaQuantidade: number) => {
-    if (novaQuantidade <= 0) {
-      removerItemDoPedido(nome);
-    } else {
-      setCarrinho(carrinho.map(item =>
-        item.nome === nome
-          ? { ...item, quantidade: novaQuantidade }
-          : item
-      ));
-    }
-  };
-
-  const finalizarPedidoBalcao = () => {
-    if (!clienteSelecionado) return;
-    if (carrinho.length === 0) {
-      toast.error("Adicione itens ao pedido");
-      return;
-    }
-
-    const total = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
-    
-    const novoPedido: Pedido = {
-      id: `balcao_${Date.now()}`,
-      numero: `#${Math.floor(1000 + Math.random() * 9000)}`,
-      cliente: clienteSelecionado.nome,
-      telefone: clienteSelecionado.telefone,
-      total: total,
-      status: "pendente",
-      data: new Date().toISOString(),
-      itens: carrinho,
-      tipo: "balcao"
-    };
-
-    // Salvar pedido no localStorage
-    const pedidosExistentes = [...pedidos, novoPedido];
-    localStorage.setItem('pedidos', JSON.stringify(pedidosExistentes));
-    setPedidos(pedidosExistentes);
-
-    toast.success(`Pedido ${novoPedido.numero} criado para ${clienteSelecionado.nome}!`);
-    setShowPedidoModal(false);
-    setCarrinho([]);
-  };
-
-  const produtosDisponiveis = [
-    { nome: "Hambúrguer Clássico", preco: 25.90 },
-    { nome: "Hambúrguer Bacon", preco: 29.90 },
-    { nome: "Batata Frita", preco: 12.90 },
-    { nome: "Batata com Cheddar", preco: 18.90 },
-    { nome: "Refrigerante Lata", preco: 6.90 },
-    { nome: "Suco Natural", preco: 8.90 },
-    { nome: "Água Mineral", preco: 4.90 },
-    { nome: "Sorvete", preco: 9.90 }
-  ];
-
-  const filteredClientes = clientes.filter(cliente =>
+  const clientesFiltrados = clientes.filter(cliente =>
     cliente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cliente.telefone.includes(searchTerm)
   );
 
-  const formatarData = (dataString: string) => {
-    return new Date(dataString).toLocaleDateString('pt-BR');
+  // Função para abrir modal de novo cliente
+  const handleNovoCliente = () => {
+    setClienteEditando(null);
+    setFormData({
+      nome: "",
+      telefone: ""
+    });
+    setShowModal(true);
+  };
+
+  // Função para abrir modal de editar cliente
+  const handleEditarCliente = (cliente: Cliente) => {
+    setClienteEditando(cliente);
+    setFormData({
+      nome: cliente.nome,
+      telefone: cliente.telefone
+    });
+    setShowModal(true);
+  };
+
+  // Função para excluir cliente
+  const handleExcluirCliente = (cliente: Cliente) => {
+    if (window.confirm(`Tem certeza que deseja excluir o cliente "${cliente.nome}"?`)) {
+      // Remover cliente da lista
+      const clientesAtualizados = clientes.filter(c => c.id !== cliente.id);
+      setClientes(clientesAtualizados);
+      
+      // Atualizar pedidos para remover referências a este cliente
+      const pedidosAtualizados = pedidos.map(pedido => {
+        if (pedido.cliente === cliente.nome && pedido.telefone === cliente.telefone) {
+          return {
+            ...pedido,
+            cliente: "Cliente Excluído",
+            telefone: "00000000000"
+          };
+        }
+        return pedido;
+      });
+      
+      setPedidos(pedidosAtualizados);
+      localStorage.setItem('pedidos', JSON.stringify(pedidosAtualizados));
+      
+      toast.success("Cliente excluído com sucesso");
+    }
+  };
+
+  // Função para salvar cliente (novo ou edição)
+  const handleSalvarCliente = () => {
+    // Validações
+    if (!formData.nome.trim()) {
+      toast.error("Nome do cliente é obrigatório");
+      return;
+    }
+
+    if (!formData.telefone.trim()) {
+      toast.error("Telefone do cliente é obrigatório");
+      return;
+    }
+
+    // Validar formato do telefone (apenas números)
+    const telefoneLimpo = formData.telefone.replace(/\D/g, '');
+    if (telefoneLimpo.length < 10) {
+      toast.error("Telefone deve ter pelo menos 10 dígitos");
+      return;
+    }
+
+    if (clienteEditando) {
+      // EDITAR CLIENTE EXISTENTE
+      const clientesAtualizados = clientes.map(cliente => {
+        if (cliente.id === clienteEditando.id) {
+          return {
+            ...cliente,
+            nome: formData.nome,
+            telefone: telefoneLimpo
+          };
+        }
+        return cliente;
+      });
+      setClientes(clientesAtualizados);
+
+      // Atualizar pedidos com novo nome/telefone
+      const pedidosAtualizados = pedidos.map(pedido => {
+        if (pedido.cliente === clienteEditando.nome && pedido.telefone === clienteEditando.telefone) {
+          return {
+            ...pedido,
+            cliente: formData.nome,
+            telefone: telefoneLimpo
+          };
+        }
+        return pedido;
+      });
+      
+      setPedidos(pedidosAtualizados);
+      localStorage.setItem('pedidos', JSON.stringify(pedidosAtualizados));
+      
+      toast.success("Cliente atualizado com sucesso");
+    } else {
+      // NOVO CLIENTE
+      const novoCliente: Cliente = {
+        id: `cliente_${Date.now()}`,
+        nome: formData.nome,
+        telefone: telefoneLimpo,
+        totalPedidos: 0,
+        totalGasto: 0,
+        primeiroPedido: new Date().toISOString(),
+        ultimoPedido: new Date().toISOString()
+      };
+
+      setClientes([...clientes, novoCliente]);
+      toast.success("Cliente cadastrado com sucesso");
+    }
+  };
+
+  // Função para formatar telefone enquanto digita
+  const formatarTelefone = (telefone: string) => {
+    const numbers = telefone.replace(/\D/g, '');
+    if (numbers.length <= 10) {
+      return numbers.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+    } else {
+      return numbers.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
+    }
+  };
+
+  const handleTelefoneChange = (telefone: string) => {
+    const formatted = formatarTelefone(telefone);
+    setFormData(prev => ({ ...prev, telefone: formatted }));
   };
 
   const formatarMoeda = (valor: number) => {
@@ -254,6 +261,10 @@ export default function AdminClientes() {
       style: 'currency',
       currency: 'BRL'
     }).format(valor);
+  };
+
+  const formatarData = (data: string) => {
+    return new Date(data).toLocaleDateString('pt-BR');
   };
 
   const handleLogout = () => {
@@ -287,10 +298,9 @@ export default function AdminClientes() {
                 </Button>
               </Link>
               <div className="flex items-center gap-3">
-                <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
                 <div>
                   <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
-                  <p className="text-sm text-gray-600">Gerenciar Clientes</p>
+                  <p className="text-sm text-gray-600">Gerenciamento de Clientes</p>
                 </div>
               </div>
             </div>
@@ -302,7 +312,6 @@ export default function AdminClientes() {
                 size="sm"
                 className="flex items-center gap-2"
               >
-                <LogOut className="h-4 w-4" />
                 Sair
               </Button>
             </div>
@@ -312,21 +321,85 @@ export default function AdminClientes() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900">Clientes Cadastrados</h2>
-            <p className="text-gray-600 mt-2">
-              Visualize os clientes do seu restaurante - {clientes.length} cliente(s)
-            </p>
+        {/* Estatísticas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total de Clientes</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {clientes.length}
+                </p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-full">
+                <Users className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pedidos no Total</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {pedidos.length}
+                </p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-full">
+                <Calendar className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Ticket Médio</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {clientes.length > 0 
+                    ? formatarMoeda(clientes.reduce((sum, cliente) => sum + cliente.totalGasto, 0) / clientes.length)
+                    : formatarMoeda(0)
+                  }
+                </p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-full">
+                <Phone className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Faturamento Total</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {formatarMoeda(clientes.reduce((sum, cliente) => sum + cliente.totalGasto, 0))}
+                </p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-full">
+                <Users className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Barra de Pesquisa e Ações */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <input
+              type="text"
+              placeholder="Buscar cliente por nome ou telefone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            />
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-600 bg-orange-50 px-3 py-1 rounded-full">
-              {pedidos.length} pedidos no sistema
-            </div>
-            <Button
-              onClick={abrirModalCliente}
-              className="bg-orange-600 hover:bg-orange-700 flex items-center gap-2"
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleNovoCliente}
+              className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700"
             >
               <Plus className="h-4 w-4" />
               Novo Cliente
@@ -334,287 +407,194 @@ export default function AdminClientes() {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por nome ou telefone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-          </div>
-        </div>
-
-        {/* Clientes List */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredClientes.map((cliente) => {
-            const estatisticas = getEstatisticasCliente(cliente.id);
-            
-            return (
-              <div key={cliente.id} className="bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-shadow">
-                <div className="p-6">
-                  {/* Header do Cliente */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 text-lg mb-2">{cliente.nome}
-
-                      </h3>
-                      <div className="space-y-2 text-sm text-gray-600">
+        {/* Lista de Clientes */}
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          {clientesFiltrados.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">
+                {searchTerm ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
+              </p>
+              {!searchTerm && (
+                <Button 
+                  onClick={handleNovoCliente}
+                  className="mt-4 flex items-center gap-2 mx-auto"
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar Primeiro Cliente
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cliente
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contato
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Pedidos
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Gasto
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Última Compra
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {clientesFiltrados.map((cliente) => (
+                    <tr key={cliente.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {cliente.nome}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Desde {formatarData(cliente.primeiroPedido)}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                            {cliente.telefone}
+                        </div>
+                        <div className="text-sm text-gray-500">telefone</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {cliente.totalPedidos}
+                        </div>
+                        <div className="text-sm text-gray-500">pedidos</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {formatarMoeda(cliente.totalGasto)}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {cliente.totalPedidos > 0 ? formatarMoeda(cliente.totalGasto / cliente.totalPedidos) : formatarMoeda(0)}/pedido
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {formatarData(cliente.ultimoPedido)}
+                        </div>
+                        <div className="text-sm text-gray-500">Última compra</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4" />
-                          <span>{cliente.telefone}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1"
+                            onClick={() => handleEditarCliente(cliente)}
+                          >
+                            <Edit className="h-3 w-3" />
+                            Editar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                            onClick={() => handleExcluirCliente(cliente)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Excluir
+                          </Button>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Estatísticas */}
-                  <div className="border-t pt-4 mt-4">
-                    <div className="flex items-center justify-between text-sm mb-3">
-                      <div className="flex items-center gap-1 text-gray-600">
-                        <Calendar className="h-4 w-4" />
-                        Cadastro: {formatarData(cliente.data_cadastro)}
-                      </div>
-                      
-                      {estatisticas.totalPedidos > 0 && (
-                        <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                          <Package className="h-3 w-3" />
-                          {estatisticas.totalPedidos} pedido(s)
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Botão de Fazer Pedido */}
-                    <Button
-                      onClick={() => abrirModalPedido(cliente)}
-                      className="w-full bg-orange-600 hover:bg-orange-700 flex items-center gap-2"
-                      size="sm"
-                    >
-                      <ShoppingCart className="h-4 w-4" />
-                      Fazer Pedido no Balcão
-                    </Button>
-
-                    {estatisticas.totalPedidos > 0 && (
-                      <div className="mt-3 space-y-1 text-xs text-gray-600">
-                        <div className="flex justify-between">
-                          <span>Total gasto:</span>
-                          <span className="font-semibold text-green-600">
-                            {formatarMoeda(estatisticas.totalGasto)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        {filteredClientes.length === 0 && (
-          <div className="text-center py-12">
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">
-              {clientes.length === 0 ? "Nenhum cliente cadastrado" : "Nenhum cliente corresponde à busca"}
+        {/* Paginação */}
+        {clientesFiltrados.length > 0 && (
+          <div className="flex items-center justify-between mt-6">
+            <p className="text-sm text-gray-700">
+              Mostrando <span className="font-medium">{clientesFiltrados.length}</span> de{" "}
+              <span className="font-medium">{clientes.length}</span> clientes
             </p>
-            <p className="text-sm text-gray-500 mt-2">
-              Clique em "Novo Cliente" para adicionar o primeiro cliente
-            </p>
-          </div>
-        )}
-
-        {/* Modal de Criar Cliente */}
-        {showClienteModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    Cadastrar Novo Cliente
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowClienteModal(false)}
-                  >
-                    ✕
-                  </Button>
-                </div>
-                
-                <form onSubmit={handleCriarCliente} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nome Completo *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.nome}
-                      onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      required
-                      placeholder="Digite o nome do cliente"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Telefone *
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.telefone}
-                      onChange={(e) => setFormData(prev => ({ ...prev, telefone: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      required
-                      placeholder="(11) 99999-9999"
-                    />
-                  </div>
-                                    
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowClienteModal(false)}
-                      className="flex-1"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="flex-1 bg-orange-600 hover:bg-orange-700"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Criar Cliente
-                    </Button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal de Pedido no Balcão */}
-        {showPedidoModal && clienteSelecionado && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    Pedido para {clienteSelecionado.nome}
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowPedidoModal(false)}
-                  >
-                    ✕
-                  </Button>
-                </div>
-
-                {/* Produtos Disponíveis */}
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 mb-3">Adicionar Itens:</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {produtosDisponiveis.map((produto, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        className="justify-start h-auto py-3 px-4"
-                        onClick={() => adicionarItemAoPedido(produto)}
-                      >
-                        <div className="text-left">
-                          <div className="font-medium text-gray-900">{produto.nome}</div>
-                          <div className="text-sm text-orange-600">{formatarMoeda(produto.preco)}</div>
-                        </div>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Carrinho */}
-                <div className="border-t pt-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Itens do Pedido:</h4>
-                  
-                  {carrinho.length === 0 ? (
-                    <p className="text-gray-500 text-center py-4">Nenhum item adicionado</p>
-                  ) : (
-                    <div className="space-y-2 mb-4">
-                      {carrinho.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div>
-                            <div className="font-medium text-gray-900">{item.nome}</div>
-                            <div className="text-sm text-gray-600">{formatarMoeda(item.preco)} cada</div>
-                          </div>
-                          
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => atualizarQuantidade(item.nome, item.quantidade - 1)}
-                              >
-                                -
-                              </Button>
-                              <span className="w-8 text-center font-medium">{item.quantidade}</span>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => atualizarQuantidade(item.nome, item.quantidade + 1)}
-                              >
-                                +
-                              </Button>
-                            </div>
-                            
-                            <div className="text-right min-w-20">
-                              <div className="font-semibold text-gray-900">
-                                {formatarMoeda(item.preco * item.quantidade)}
-                              </div>
-                            </div>
-                            
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removerItemDoPedido(item.nome)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              ✕
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Total */}
-                  {carrinho.length > 0 && (
-                    <div className="border-t pt-4 mb-4">
-                      <div className="flex justify-between items-center text-lg font-semibold">
-                        <span>Total:</span>
-                        <span className="text-orange-600">
-                          {formatarMoeda(carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0))}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Botão Finalizar */}
-                  <Button
-                    onClick={finalizarPedidoBalcao}
-                    disabled={carrinho.length === 0}
-                    className="w-full bg-orange-600 hover:bg-orange-700"
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
-                    Finalizar Pedido no Balcão
-                  </Button>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </main>
+
+      {/* Modal para Novo/Editar Cliente */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {clienteEditando ? "Editar Cliente" : "Novo Cliente"}
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowModal(false)}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nome *
+                </label>
+                <input
+                  type="text"
+                  value={formData.nome}
+                  onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="Digite o nome do cliente"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefone *
+                </label>
+                <input
+                  type="text"
+                  value={formData.telefone}
+                  onChange={(e) => handleTelefoneChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  placeholder="(11) 99999-9999"
+                  maxLength={15}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setShowModal(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSalvarCliente}
+                className="bg-orange-600 hover:bg-orange-700 flex items-center gap-2"
+              >
+                <Save className="h-4 w-4" />
+                {clienteEditando ? "Atualizar" : "Salvar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

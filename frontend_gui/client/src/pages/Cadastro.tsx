@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { APP_LOGO, APP_TITLE } from "@/const";
 import { toast } from "sonner";
-import { Eye, EyeOff, User, Phone } from "lucide-react";
+import { User, Phone } from "lucide-react";
+import Header from "@/components/Header"; // ✅ Importar o Header
 
 interface FormData {
   nome: string;
@@ -23,8 +23,16 @@ export default function Cadastro() {
   });
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [, navigate] = useLocation();
+
+  // Verificar se já está logado ao carregar a página
+  useEffect(() => {
+    const clienteId = localStorage.getItem("clienteId");
+    if (clienteId) {
+      // Se já estiver logado, redireciona direto para o menu
+      navigate("/menu");
+    }
+  }, [navigate]);
 
   const formatarTelefone = (telefone: string) => {
     const numbers = telefone.replace(/\D/g, '');
@@ -135,6 +143,21 @@ export default function Cadastro() {
     return await response.json();
   };
 
+  const salvarDadosCliente = (cliente: Cliente) => {
+    // Salvar dados no localStorage com timestamp para controle de expiração
+    const loginData = {
+      id: cliente.id,
+      nome: cliente.nome,
+      telefone: cliente.telefone,
+      timestamp: new Date().getTime()
+    };
+    
+    localStorage.setItem("clienteData", JSON.stringify(loginData));
+    localStorage.setItem("clienteId", cliente.id.toString());
+    localStorage.setItem("clienteNome", cliente.nome);
+    localStorage.setItem("clienteTelefone", cliente.telefone);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -167,13 +190,11 @@ export default function Cadastro() {
       }
 
       // Salvar dados no localStorage
-      localStorage.setItem("clienteId", cliente.id.toString());
-      localStorage.setItem("clienteNome", cliente.nome);
-      localStorage.setItem("clienteTelefone", cliente.telefone);
+      salvarDadosCliente(cliente);
 
-      // Redirecionar para o menu
+      // Redirecionar para o menu usando navigate do wouter
       setTimeout(() => {
-        window.location.href = "/menu";
+        navigate("/menu");
       }, 1000);
 
     } catch (err) {
@@ -199,23 +220,14 @@ export default function Cadastro() {
   const continuarSemCadastro = () => {
     toast.info("Você pode fazer pedidos, mas alguns recursos serão limitados");
     setTimeout(() => {
-      window.location.href = "/menu";
+      navigate("/menu");
     }, 500);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <Link href="/">
-            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-              <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
-              <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
-            </div>
-          </Link>
-        </div>
-      </header>
+      {/* ✅ Header Reutilizável */}
+      <Header />
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 flex items-center justify-center min-h-[calc(100vh-80px)]">
@@ -308,6 +320,17 @@ export default function Cadastro() {
                   {isLogin ? "Cadastre-se aqui" : "Faça login aqui"}
                 </button>
               </p>
+            </div>
+
+            {/* Continuar sem cadastro */}
+            <div className="mt-4 text-center">
+              <button
+                onClick={continuarSemCadastro}
+                disabled={loading}
+                className="text-gray-500 hover:text-gray-700 text-sm disabled:opacity-50 transition-colors"
+              >
+                Continuar sem cadastro
+              </button>
             </div>
           </div>
         </div>

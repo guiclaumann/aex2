@@ -8,6 +8,8 @@ import Menu from "@/pages/Menu";
 import Cadastro from "@/pages/Cadastro";
 import Pagamento from "@/pages/Pagamento";
 import ConfirmacaoPedido from "@/pages/ConfirmacaoPedido";
+import AcompanharPedido from "@/pages/AcompanharPedido";
+import PainelPedidos from '@/pages/PainelPedidos';
 
 // Admin Pages
 import Admin from "@/pages/Admin";
@@ -15,6 +17,7 @@ import AdminPedidos from "@/pages/AdminPedidos";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminProdutos from "./pages/AdminProdutos";
 import AdminClientes from "@/pages/AdminClientes";
+import AdminRelatorios from "@/pages/AdminRelatorios";
 
 
 // Loading component
@@ -36,6 +39,9 @@ function App() {
         <Route path="/cadastro" component={Cadastro} />
         <Route path="/pagamento" component={Pagamento} />
         <Route path="/confirmacao-pedido/:numero" component={ConfirmacaoPedido} />
+        <Route path="/acompanhar-pedido/:pedidoId" component={AcompanharPedido} />
+        <Route path="/painel-pedidos" component={PainelPedidos} />
+
         
         {/* Rotas administrativas */}
         <Route path="/admin" component={Admin} />
@@ -43,6 +49,7 @@ function App() {
         <Route path="/admin/login" component={AdminLogin} />
         <Route path="/admin/produtos" component={AdminProdutos} />
         <Route path="/admin/clientes" component={AdminClientes} />
+        <Route path="/admin/relatorios" component={AdminRelatorios} />
         
         {/* 404 */}
         <Route>

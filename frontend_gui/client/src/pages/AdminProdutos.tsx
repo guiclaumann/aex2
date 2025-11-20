@@ -11,7 +11,9 @@ import {
   ChefHat,
   LogOut,
   ArrowLeft,
-  Upload
+  Upload,
+  ToggleLeft,
+  ToggleRight
 } from "lucide-react";
 
 interface Produto {
@@ -59,9 +61,15 @@ export default function AdminProdutos() {
         
         if (response.ok) {
           const data = await response.json();
-          setProdutos(data);
-          // Salvar no localStorage como fallback
-          localStorage.setItem('produtos', JSON.stringify(data));
+          
+          // ✅ CORREÇÃO: GARANTIR QUE TODOS OS PRODUTOS VENHAM COMO ATIVOS
+          const produtosComDisponivel = data.map((produto: Produto) => ({
+            ...produto,
+            disponivel: produto.disponivel !== undefined ? produto.disponivel : true
+          }));
+          
+          setProdutos(produtosComDisponivel);
+          localStorage.setItem('produtos', JSON.stringify(produtosComDisponivel));
           return;
         }
       } catch (apiError) {
@@ -72,9 +80,16 @@ export default function AdminProdutos() {
       const produtosLocal = localStorage.getItem('produtos');
       if (produtosLocal) {
         const produtosParseados: Produto[] = JSON.parse(produtosLocal);
-        setProdutos(produtosParseados);
+        
+        // ✅ CORREÇÃO: GARANTIR QUE PRODUTOS DO LOCALSTORAGE SEJAM ATIVOS
+        const produtosAtivos = produtosParseados.map(produto => ({
+          ...produto,
+          disponivel: produto.disponivel !== undefined ? produto.disponivel : true
+        }));
+        
+        setProdutos(produtosAtivos);
       } else {
-        // Mock data apenas se não houver dados salvos
+        // Mock data - TODOS COMO ATIVOS
         setProdutos([
           {
             id: 1,
@@ -112,7 +127,6 @@ export default function AdminProdutos() {
 
   const carregarCategorias = async () => {
     try {
-      // Mock de categorias - em produção, buscar da API
       setCategorias([
         { id: 1, nome: "Lanches" },
         { id: 2, nome: "Acompanhamentos" },
@@ -135,8 +149,6 @@ export default function AdminProdutos() {
         categoria_id: parseInt(formData.categoria_id),
         disponivel: formData.disponivel
       };
-
-      console.log("Enviando produto:", produtoData);
 
       // Tentar salvar na API
       const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
@@ -170,7 +182,6 @@ export default function AdminProdutos() {
         const categoriaNome = categorias.find(c => c.id === parseInt(formData.categoria_id))?.nome || "Sem Categoria";
         
         if (editingProduto) {
-          // Editar produto existente
           const index = produtosAtuais.findIndex(p => p.id === editingProduto.id);
           if (index !== -1) {
             produtosAtuais[index] = {
@@ -181,11 +192,12 @@ export default function AdminProdutos() {
           }
           produtoSalvo = produtosAtuais[index];
         } else {
-          // Criar novo produto
+          // ✅ CORREÇÃO: NOVOS PRODUTOS SEMPRE COMO ATIVOS
           const novoProduto: Produto = {
-            id: Date.now(), // ID temporário
+            id: Date.now(),
             ...produtoData,
-            nome_categoria: categoriaNome
+            nome_categoria: categoriaNome,
+            disponivel: true
           };
           produtosAtuais.unshift(novoProduto);
           produtoSalvo = novoProduto;
@@ -224,7 +236,6 @@ export default function AdminProdutos() {
         }
       } catch (apiError) {
         console.log("API não disponível, excluindo localmente...");
-        // Fallback para localStorage
         const produtosAtuais = produtos.filter(p => p.id !== id);
         localStorage.setItem('produtos', JSON.stringify(produtosAtuais));
         setProdutos(produtosAtuais);
@@ -238,13 +249,59 @@ export default function AdminProdutos() {
     }
   };
 
+  // ✅ FUNÇÃO CORRIGIDA - IGNORA RESPOSTA DA API
+  const handleToggleDisponibilidade = async (produto: Produto) => {
+    try {
+      const novoStatus = !produto.disponivel;
+
+      // ✅ 1. ATUALIZAR ESTADO LOCAL IMEDIATAMENTE
+      const produtosAtualizados = produtos.map(p =>
+        p.id === produto.id ? { ...p, disponivel: novoStatus } : p
+      );
+      setProdutos(produtosAtualizados);
+
+      // ✅ 2. SALVAR NO LOCALSTORAGE
+      localStorage.setItem('produtos', JSON.stringify(produtosAtualizados));
+
+      // ✅ 3. TENTAR SALVAR NA API (IGNORAR RESPOSTA)
+      const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+      
+      try {
+        const produtoAtualizado = {
+          ...produto,
+          disponivel: novoStatus
+        };
+
+        const response = await fetch(`${apiUrl}/v1/product/${produto.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(produtoAtualizado)
+        });
+
+        if (response.ok) {
+          toast.success(`Produto ${novoStatus ? 'ativado' : 'desativado'} com sucesso!`);
+        } else {
+          toast.success(`Produto ${novoStatus ? 'ativado' : 'desativado'} localmente!`);
+        }
+      } catch (apiError) {
+        toast.success(`Produto ${novoStatus ? 'ativado' : 'desativado'} localmente!`);
+      }
+
+    } catch (err) {
+      console.error("Erro ao alternar disponibilidade:", err);
+      toast.error("Erro ao alterar status do produto");
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       nome: "",
       descricao: "",
       preco_venda: "",
       categoria_id: "",
-      disponivel: true
+      disponivel: true // ✅ SEMPRE TRUE AO RESETAR
     });
     setEditingProduto(null);
   };
@@ -303,7 +360,6 @@ export default function AdminProdutos() {
                 </Button>
               </Link>
               <div className="flex items-center gap-3">
-                <img src={APP_LOGO} alt={APP_TITLE} className="h-10 w-10 rounded" />
                 <div>
                   <h1 className="text-2xl font-bold text-orange-600">{APP_TITLE}</h1>
                   <p className="text-sm text-gray-600">Gerenciar Produtos</p>
@@ -388,6 +444,24 @@ export default function AdminProdutos() {
                   </span>
                   
                   <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => handleToggleDisponibilidade(produto)}
+                      variant={produto.disponivel ? "default" : "outline"}
+                      size="sm"
+                      className={`flex items-center gap-1 ${
+                        produto.disponivel 
+                          ? 'bg-green-600 hover:bg-green-700' 
+                          : 'border-gray-300'
+                      }`}
+                    >
+                      {produto.disponivel ? (
+                        <ToggleRight className="h-4 w-4" />
+                      ) : (
+                        <ToggleLeft className="h-4 w-4" />
+                      )}
+                      {produto.disponivel ? 'Ativo' : 'Inativo'}
+                    </Button>
+                    
                     <Button
                       onClick={() => openEditModal(produto)}
                       variant="outline"
@@ -495,17 +569,27 @@ export default function AdminProdutos() {
                   </select>
                 </div>
                 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="disponivel"
-                    checked={formData.disponivel}
-                    onChange={(e) => setFormData(prev => ({ ...prev, disponivel: e.target.checked }))}
-                    className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                  />
-                  <label htmlFor="disponivel" className="text-sm text-gray-700">
-                    Produto disponível para venda
-                  </label>
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900">Produto disponível para venda</p>
+                    <p className="text-sm text-gray-600">Ative para exibir no cardápio</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={formData.disponivel ? "default" : "outline"}
+                    onClick={() => setFormData(prev => ({ ...prev, disponivel: !prev.disponivel }))}
+                    className={`relative inline-flex items-center ${
+                      formData.disponivel 
+                        ? 'bg-green-600 hover:bg-green-700' 
+                        : 'border-gray-300'
+                    }`}
+                  >
+                    {formData.disponivel ? (
+                      <ToggleRight className="h-4 w-4" />
+                    ) : (
+                      <ToggleLeft className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
                 
                 <div className="flex gap-3 pt-4">

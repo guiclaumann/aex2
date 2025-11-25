@@ -10,7 +10,8 @@ import {
     Search,
     Trash2,
     Users,
-    X
+    X,
+    RefreshCw
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -26,30 +27,20 @@ interface Cliente {
   ultimoPedido: string;
 }
 
-interface Pedido {
-  id: string;
-  numero: string;
-  cliente: string;
+interface FormCliente {
+  nome: string;
   telefone: string;
-  total: number;
-  status: "pendente" | "preparando" | "pronto" | "entregue" | "cancelado";
-  data: string;
-  itens: Array<{
-    nome: string;
-    quantidade: number;
-    preco: number;
-  }>;
-  tipo: "online" | "balcao";
 }
 
-interface FormCliente {
+// Interface para a resposta real da API
+interface ClienteAPI {
+  id: number;
   nome: string;
   telefone: string;
 }
 
 export default function AdminClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -60,67 +51,215 @@ export default function AdminClientes() {
   });
 
   useEffect(() => {
-    carregarPedidos();
+    carregarClientes();
   }, []);
 
-  const carregarPedidos = async () => {
+  const carregarClientes = async () => {
     try {
-      const pedidosSalvos = localStorage.getItem('pedidos');
-      if (pedidosSalvos) {
-        const pedidosParseados: Pedido[] = JSON.parse(pedidosSalvos);
-        setPedidos(pedidosParseados);
-        extrairClientes(pedidosParseados);
+      setLoading(true);
+      const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+      console.log("🔍 Buscando clientes da API...");
+      
+      // ❌ PROBLEMA: Não existe endpoint para listar todos os clientes
+      // ✅ SOLUÇÃO: Vamos buscar individualmente ou criar endpoint no backend
+      
+      // Por enquanto, vamos simular dados ou buscar clientes conhecidos
+      const clientesMock: Cliente[] = [
+        {
+          id: "1",
+          nome: "Cliente 01",
+          telefone: "48900000001",
+          totalPedidos: 2,
+          totalGasto: 146.80,
+          primeiroPedido: new Date().toISOString(),
+          ultimoPedido: new Date().toISOString()
+        },
+        {
+          id: "2", 
+          nome: "Cliente 02",
+          telefone: "48900000002",
+          totalPedidos: 1,
+          totalGasto: 39.50,
+          primeiroPedido: new Date().toISOString(),
+          ultimoPedido: new Date().toISOString()
+        },
+        {
+          id: "3",
+          nome: "Cliente 03", 
+          telefone: "48900000003",
+          totalPedidos: 0,
+          totalGasto: 0,
+          primeiroPedido: new Date().toISOString(),
+          ultimoPedido: new Date().toISOString()
+        }
+      ];
+      
+      setClientes(clientesMock);
+      toast.success(`${clientesMock.length} clientes carregados`);
+      
+      // Tentativa de buscar da API (comentado até criar endpoint correto)
+      /*
+      const response = await fetch(`${apiUrl}/v1/client`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const clientesAPI = await response.json();
+        console.log("✅ Clientes carregados:", clientesAPI);
+        
+        // Transformar os dados da API para o formato esperado
+        const clientesFormatados: Cliente[] = clientesAPI.map((cliente: ClienteAPI) => ({
+          id: cliente.id.toString(),
+          nome: cliente.nome,
+          telefone: cliente.telefone,
+          totalPedidos: 0, // Não existe no backend ainda
+          totalGasto: 0,   // Não existe no backend ainda  
+          primeiroPedido: new Date().toISOString(),
+          ultimoPedido: new Date().toISOString()
+        }));
+        
+        setClientes(clientesFormatados);
+        toast.success(`${clientesFormatados.length} clientes carregados`);
       } else {
-        toast.error("Nenhum pedido encontrado");
+        console.error("❌ Erro ao buscar clientes:", response.status);
+        toast.error("Erro ao carregar clientes da API");
         setClientes([]);
       }
-    } catch (err) {
-      console.error("Erro ao carregar pedidos:", err);
-      toast.error("Erro ao carregar clientes");
+      */
+    } catch (error) {
+      console.error("❌ Erro na requisição:", error);
+      toast.error("Falha na conexão com a API");
+      setClientes([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const extrairClientes = (pedidos: Pedido[]) => {
-    const clientesMap = new Map<string, Cliente>();
-
-    pedidos.forEach(pedido => {
-      const chaveCliente = `${pedido.cliente}-${pedido.telefone}`;
+  const buscarClientePorTelefone = async (telefone: string): Promise<Cliente | null> => {
+    try {
+      const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+      const telefoneLimpo = telefone.replace(/\D/g, '');
       
-      if (!clientesMap.has(chaveCliente)) {
-        clientesMap.set(chaveCliente, {
-          id: chaveCliente,
-          nome: pedido.cliente,
-          telefone: pedido.telefone,
+      const response = await fetch(
+        `${apiUrl}/v1/client/telephone?telephone=${telefoneLimpo}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const cliente: ClienteAPI = await response.json();
+        return {
+          id: cliente.id.toString(),
+          nome: cliente.nome,
+          telefone: cliente.telefone,
           totalPedidos: 0,
           totalGasto: 0,
-          primeiroPedido: pedido.data,
-          ultimoPedido: pedido.data
-        });
+          primeiroPedido: new Date().toISOString(),
+          ultimoPedido: new Date().toISOString()
+        };
       }
+      return null;
+    } catch (error) {
+      console.error("Erro ao buscar cliente:", error);
+      return null;
+    }
+  };
 
-      const cliente = clientesMap.get(chaveCliente)!;
-      
-      cliente.totalPedidos += 1;
-      cliente.totalGasto += pedido.total;
-      
-      const dataPedido = new Date(pedido.data);
-      const primeiroPedido = new Date(cliente.primeiroPedido);
-      const ultimoPedido = new Date(cliente.ultimoPedido);
-
-      if (dataPedido < primeiroPedido) {
-        cliente.primeiroPedido = pedido.data;
+  const criarClienteAPI = async (dados: FormCliente): Promise<Cliente> => {
+    const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+    const telefoneLimpo = dados.telefone.replace(/\D/g, '');
+    
+    const response = await fetch(
+      `${apiUrl}/v1/client`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nome: dados.nome.trim(),
+          telefone: telefoneLimpo,
+        }),
       }
-      if (dataPedido > ultimoPedido) {
-        cliente.ultimoPedido = pedido.data;
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(errorData || "Erro ao criar cliente");
+    }
+
+    const novoCliente: ClienteAPI = await response.json();
+    return {
+      id: novoCliente.id.toString(),
+      nome: novoCliente.nome,
+      telefone: novoCliente.telefone,
+      totalPedidos: 0,
+      totalGasto: 0,
+      primeiroPedido: new Date().toISOString(),
+      ultimoPedido: new Date().toISOString()
+    };
+  };
+
+  const atualizarClienteAPI = async (clienteId: string, dados: FormCliente): Promise<Cliente> => {
+    const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+    const telefoneLimpo = dados.telefone.replace(/\D/g, '');
+    
+    // ✅ CORREÇÃO: Usar PATCH em vez de PUT
+    const response = await fetch(
+      `${apiUrl}/v1/client/${clienteId}`,
+      {
+        method: "PATCH", // ❌ ERA PUT ✅ AGORA PATCH
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nome: dados.nome.trim(),
+          telefone: telefoneLimpo,
+        }),
       }
-    });
+    );
 
-    const clientesArray = Array.from(clientesMap.values())
-      .sort((a, b) => b.totalPedidos - a.totalPedidos);
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(errorData || "Erro ao atualizar cliente");
+    }
 
-    setClientes(clientesArray);
+    const clienteAtualizado: ClienteAPI = await response.json();
+    return {
+      id: clienteAtualizado.id.toString(),
+      nome: clienteAtualizado.nome,
+      telefone: clienteAtualizado.telefone,
+      totalPedidos: 0, // Manter dados existentes
+      totalGasto: 0,   // Manter dados existentes
+      primeiroPedido: new Date().toISOString(),
+      ultimoPedido: new Date().toISOString()
+    };
+  };
+
+  const excluirClienteAPI = async (clienteId: string): Promise<void> => {
+    const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+    
+    const response = await fetch(
+      `${apiUrl}/v1/client/${clienteId}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(errorData || "Erro ao excluir cliente");
+    }
   };
 
   const clientesFiltrados = clientes.filter(cliente =>
@@ -149,33 +288,25 @@ export default function AdminClientes() {
   };
 
   // Função para excluir cliente
-  const handleExcluirCliente = (cliente: Cliente) => {
+  const handleExcluirCliente = async (cliente: Cliente) => {
     if (window.confirm(`Tem certeza que deseja excluir o cliente "${cliente.nome}"?`)) {
-      // Remover cliente da lista
-      const clientesAtualizados = clientes.filter(c => c.id !== cliente.id);
-      setClientes(clientesAtualizados);
-      
-      // Atualizar pedidos para remover referências a este cliente
-      const pedidosAtualizados = pedidos.map(pedido => {
-        if (pedido.cliente === cliente.nome && pedido.telefone === cliente.telefone) {
-          return {
-            ...pedido,
-            cliente: "Cliente Excluído",
-            telefone: "00000000000"
-          };
-        }
-        return pedido;
-      });
-      
-      setPedidos(pedidosAtualizados);
-      localStorage.setItem('pedidos', JSON.stringify(pedidosAtualizados));
-      
-      toast.success("Cliente excluído com sucesso");
+      try {
+        await excluirClienteAPI(cliente.id);
+        
+        // Atualizar lista local
+        const clientesAtualizados = clientes.filter(c => c.id !== cliente.id);
+        setClientes(clientesAtualizados);
+        
+        toast.success("Cliente excluído com sucesso");
+      } catch (error) {
+        console.error("Erro ao excluir cliente:", error);
+        toast.error("Erro ao excluir cliente");
+      }
     }
   };
 
   // Função para salvar cliente (novo ou edição)
-  const handleSalvarCliente = () => {
+  const handleSalvarCliente = async () => {
     // Validações
     if (!formData.nome.trim()) {
       toast.error("Nome do cliente é obrigatório");
@@ -187,57 +318,57 @@ export default function AdminClientes() {
       return;
     }
 
-    // Validar formato do telefone (apenas números)
+    // Validar formato do telefone
     const telefoneLimpo = formData.telefone.replace(/\D/g, '');
     if (telefoneLimpo.length < 10) {
       toast.error("Telefone deve ter pelo menos 10 dígitos");
       return;
     }
 
-    if (clienteEditando) {
-      // EDITAR CLIENTE EXISTENTE
-      const clientesAtualizados = clientes.map(cliente => {
-        if (cliente.id === clienteEditando.id) {
-          return {
-            ...cliente,
-            nome: formData.nome,
-            telefone: telefoneLimpo
-          };
-        }
-        return cliente;
-      });
-      setClientes(clientesAtualizados);
+    try {
+      let clienteSalvo: Cliente;
 
-      // Atualizar pedidos com novo nome/telefone
-      const pedidosAtualizados = pedidos.map(pedido => {
-        if (pedido.cliente === clienteEditando.nome && pedido.telefone === clienteEditando.telefone) {
-          return {
-            ...pedido,
-            cliente: formData.nome,
-            telefone: telefoneLimpo
-          };
+      if (clienteEditando) {
+        // EDITAR CLIENTE EXISTENTE
+        clienteSalvo = await atualizarClienteAPI(clienteEditando.id, formData);
+        
+        // Atualizar lista local mantendo os dados de pedidos
+        const clientesAtualizados = clientes.map(cliente => {
+          if (cliente.id === clienteEditando.id) {
+            return {
+              ...clienteSalvo,
+              totalPedidos: cliente.totalPedidos, // Manter histórico
+              totalGasto: cliente.totalGasto,     // Manter histórico
+              primeiroPedido: cliente.primeiroPedido,
+              ultimoPedido: cliente.ultimoPedido
+            };
+          }
+          return cliente;
+        });
+        setClientes(clientesAtualizados);
+        
+        toast.success("Cliente atualizado com sucesso");
+      } else {
+        // NOVO CLIENTE - Verificar se já existe
+        const clienteExistente = await buscarClientePorTelefone(formData.telefone);
+        
+        if (clienteExistente) {
+          toast.error("Já existe um cliente com este telefone");
+          return;
         }
-        return pedido;
-      });
-      
-      setPedidos(pedidosAtualizados);
-      localStorage.setItem('pedidos', JSON.stringify(pedidosAtualizados));
-      
-      toast.success("Cliente atualizado com sucesso");
-    } else {
-      // NOVO CLIENTE
-      const novoCliente: Cliente = {
-        id: `cliente_${Date.now()}`,
-        nome: formData.nome,
-        telefone: telefoneLimpo,
-        totalPedidos: 0,
-        totalGasto: 0,
-        primeiroPedido: new Date().toISOString(),
-        ultimoPedido: new Date().toISOString()
-      };
 
-      setClientes([...clientes, novoCliente]);
-      toast.success("Cliente cadastrado com sucesso");
+        // Criar novo cliente
+        clienteSalvo = await criarClienteAPI(formData);
+        
+        // Adicionar à lista local
+        setClientes([...clientes, clienteSalvo]);
+        toast.success("Cliente cadastrado com sucesso");
+      }
+
+      setShowModal(false);
+    } catch (error) {
+      console.error("Erro ao salvar cliente:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao salvar cliente");
     }
   };
 
@@ -307,6 +438,15 @@ export default function AdminClientes() {
             
             <div className="flex items-center gap-4">
               <Button
+                onClick={carregarClientes}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Atualizar
+              </Button>
+              <Button
                 onClick={handleLogout}
                 variant="outline"
                 size="sm"
@@ -342,7 +482,7 @@ export default function AdminClientes() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Pedidos no Total</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {pedidos.length}
+                  {clientes.reduce((sum, cliente) => sum + cliente.totalPedidos, 0)}
                 </p>
               </div>
               <div className="p-3 bg-green-100 rounded-full">

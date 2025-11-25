@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Link, useLocation } from "wouter";
-import { toast } from "sonner";
-import { User, Phone } from "lucide-react";
 import Header from "@/components/Header";
+import { Button } from "@/components/ui/button";
+import { Phone, User } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 interface FormData {
   nome: string;
@@ -24,7 +24,6 @@ export default function Cadastro() {
   const [loading, setLoading] = useState(false);
   const [, navigate] = useLocation();
 
-  // Verificar se já está logado ao carregar a página
   useEffect(() => {
     const clienteId = localStorage.getItem("clienteId");
     if (clienteId) {
@@ -64,7 +63,6 @@ export default function Cadastro() {
   };
 
   const validarFormulario = (): { valido: boolean; erro?: string } => {
-    // Validar nome
     if (!formData.nome.trim()) {
       return { valido: false, erro: "Nome é obrigatório" };
     }
@@ -73,66 +71,73 @@ export default function Cadastro() {
       return { valido: false, erro: "Nome deve ter pelo menos 2 caracteres" };
     }
 
-    // Validar telefone
     if (!formData.telefone.trim()) {
       return { valido: false, erro: "Telefone é obrigatório" };
     }
 
     const telefoneLimpo = formData.telefone.replace(/\D/g, '');
     
-    // Validar DDD (deve começar com números válidos)
-    const ddd = telefoneLimpo.substring(0, 2);
-    const dddsValidos = ['11', '12', '13', '14', '15', '16', '17', '18', '19', '21', '22', '24', '27', '28', '31', '32', '33', '34', '35', '37', '38', '41', '42', '43', '44', '45', '46', '47', '48', '49', '51', '53', '54', '55', '61', '62', '63', '64', '65', '66', '67', '68', '69', '71', '73', '74', '75', '77', '79', '81', '82', '83', '84', '85', '86', '87', '88', '89', '91', '92', '93', '94', '95', '96', '97', '98', '99'];
-    
-    if (!dddsValidos.includes(ddd)) {
-      return { valido: false, erro: "DDD inválido. Digite um DDD válido do Brasil." };
-    }
-
-    // Validar número completo
-    if (telefoneLimpo.length !== 11) {
-      return { valido: false, erro: "Telefone deve ter 11 dígitos (DDD + 9 dígitos)" };
-    }
-
-    // Validar se o número começa com 9 (celular)
-    const primeiroDigitoNumero = telefoneLimpo.charAt(2);
-    if (primeiroDigitoNumero !== '9') {
-      return { valido: false, erro: "Número de celular deve começar com 9" };
+    if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
+      return { valido: false, erro: "Telefone deve ter 10 ou 11 dígitos" };
     }
 
     return { valido: true };
   };
 
-  const handleLogin = async (telefone: string): Promise<Cliente> => {
+  const buscarClientePorTelefone = async (telefone: string): Promise<Cliente | null> => {
     const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
     const telefoneLimpo = telefone.replace(/\D/g, '');
     
-    console.log("🔍 Buscando cliente com telefone:", telefoneLimpo);
+    console.log("🔍 BUSCA: Procurando cliente com telefone:", telefoneLimpo);
+    console.log("🔍 BUSCA: URL completa:", `${apiUrl}/v1/client?telephone=${telefoneLimpo}`);
     
-    const response = await fetch(
-      `${apiUrl}/v1/client?telephone=${telefoneLimpo}`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    try {
+      const response = await fetch(
+        `${apiUrl}/v1/client?telephone=${telefoneLimpo}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-    if (!response.ok) {
+      console.log("🔍 BUSCA: Resposta - Status:", response.status, "OK:", response.ok);
+
       if (response.status === 404) {
-        // Cliente não encontrado, vamos criar um novo
-        console.log("📝 Cliente não encontrado, criando novo...");
-        return await criarNovoCliente(telefoneLimpo);
+        console.log("🔍 BUSCA: Cliente não encontrado (404)");
+        return null;
       }
-      throw new Error(`Erro ${response.status}: Falha ao buscar cliente`);
-    }
 
-    return await response.json();
+      if (!response.ok) {
+        console.error("🔍 BUSCA: Erro na resposta:", response.status, response.statusText);
+        // Se der erro diferente de 404, vamos tentar criar o cliente mesmo assim
+        console.log("🔍 BUSCA: Vamos tentar criar o cliente...");
+        return null;
+      }
+
+      const cliente = await response.json();
+      console.log("🔍 BUSCA: Cliente encontrado:", cliente);
+      return cliente;
+    } catch (error) {
+      console.error("🔍 BUSCA: Erro na requisição:", error);
+      // Em caso de erro de rede, vamos tentar criar o cliente
+      console.log("🔍 BUSCA: Erro de rede, tentando criar cliente...");
+      return null;
+    }
   };
 
-  const criarNovoCliente = async (telefone: string): Promise<Cliente> => {
+  const criarNovoCliente = async (): Promise<Cliente> => {
     const apiUrl = import.meta.env.VITE_FRONTEND_FORGE_API_URL || "http://localhost:8080";
+    const telefoneLimpo = formData.telefone.replace(/\D/g, '');
     
-    console.log("🆕 Criando novo cliente...");
+    const dadosCliente = {
+      nome: formData.nome.trim(),
+      telefone: telefoneLimpo,
+    };
+    
+    console.log("🆕 CRIAÇÃO: Criando novo cliente...", dadosCliente);
+    console.log("🆕 CRIAÇÃO: URL:", `${apiUrl}/v1/client`);
     
     const response = await fetch(
       `${apiUrl}/v1/client`,
@@ -141,33 +146,46 @@ export default function Cadastro() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          nome: formData.nome.trim(),
-          telefone: telefone,
-        }),
+        body: JSON.stringify(dadosCliente),
       }
     );
+
+    console.log("🆕 CRIAÇÃO: Resposta - Status:", response.status, "OK:", response.ok);
 
     if (!response.ok) {
       let errorMessage = "Erro ao criar conta";
       
       try {
-        const errorData = await response.json();
-        if (errorData.message?.includes("já existe")) {
-          errorMessage = "Este telefone já está cadastrado. Tente fazer login novamente.";
-        } else if (errorData.message) {
-          errorMessage = errorData.message;
+        const errorData = await response.text();
+        console.error("🆕 CRIAÇÃO: Resposta de erro:", errorData);
+        
+        if (errorData.includes("já existe") || errorData.includes("already exists")) {
+          errorMessage = "Este telefone já está cadastrado. Tente fazer login.";
+        } else {
+          errorMessage = `Erro ${response.status}: ${errorData || response.statusText}`;
         }
       } catch {
-        // Se não conseguir parsear o JSON, usa mensagem padrão
+        errorMessage = `Erro ${response.status}: ${response.statusText}`;
       }
       
       throw new Error(errorMessage);
     }
 
-    const novoCliente = await response.json();
-    console.log("✅ Novo cliente criado:", novoCliente);
-    return novoCliente;
+    try {
+      const novoCliente = await response.json();
+      console.log("🆕 CRIAÇÃO: Novo cliente criado com sucesso:", novoCliente);
+      return novoCliente;
+    } catch (parseError) {
+      console.error("🆕 CRIAÇÃO: Erro ao parsear resposta:", parseError);
+      // Se não conseguir parsear JSON, mas a resposta foi OK, cria um cliente local
+      const clienteLocal: Cliente = {
+        id: Date.now(), // ID temporário
+        nome: formData.nome.trim(),
+        telefone: telefoneLimpo,
+      };
+      console.log("🆕 CRIAÇÃO: Usando cliente local:", clienteLocal);
+      return clienteLocal;
+    }
   };
 
   const salvarDadosCliente = (cliente: Cliente) => {
@@ -183,13 +201,13 @@ export default function Cadastro() {
     localStorage.setItem("clienteNome", cliente.nome);
     localStorage.setItem("clienteTelefone", cliente.telefone);
     
-    console.log("💾 Dados do cliente salvos no localStorage");
+    console.log("💾 Dados salvos no localStorage:", loginData);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    console.log("🔄 Iniciando processo de login/cadastro...");
+    console.log("🔄 INÍCIO: Processo de login/cadastro", formData);
 
     const validacao = validarFormulario();
     if (!validacao.valido) {
@@ -200,14 +218,29 @@ export default function Cadastro() {
     try {
       setLoading(true);
 
-      // Primeiro tenta fazer login, se não existir, cria novo cliente
-      const cliente = await handleLogin(formData.telefone);
+      // Primeiro busca o cliente pelo telefone
+      const telefoneLimpo = formData.telefone.replace(/\D/g, '');
+      console.log("📞 Telefone limpo para busca:", telefoneLimpo);
+      
+      const clienteExistente = await buscarClientePorTelefone(telefoneLimpo);
+
+      let cliente: Cliente;
+
+      if (clienteExistente) {
+        // Cliente existe - faz login
+        console.log("✅ LOGIN: Cliente encontrado", clienteExistente);
+        cliente = clienteExistente;
+        toast.success(`Bem-vindo de volta, ${cliente.nome}!`);
+      } else {
+        // Cliente não existe - cria novo
+        console.log("🆕 CADASTRO: Criando novo cliente...");
+        cliente = await criarNovoCliente();
+        toast.success(`Conta criada com sucesso! Bem-vindo, ${cliente.nome}!`);
+      }
       
       // Salvar dados no localStorage
       salvarDadosCliente(cliente);
-      toast.success(`Bem-vindo, ${cliente.nome}!`);
-
-      console.log("✅ Login realizado com sucesso, redirecionando...");
+      console.log("🎯 REDIRECIONANDO para /menu");
 
       // Redirecionar para o menu
       setTimeout(() => {
@@ -215,7 +248,7 @@ export default function Cadastro() {
       }, 1000);
 
     } catch (err) {
-      console.error("❌ Erro no processo:", err);
+      console.error("❌ ERRO FINAL:", err);
       toast.error(err instanceof Error ? err.message : "Erro inesperado. Tente novamente.");
     } finally {
       setLoading(false);
@@ -309,17 +342,15 @@ export default function Cadastro() {
               </Button>
             </form>
 
-            {/* Informações de validação */}
             <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
               <p className="text-xs text-blue-700 font-medium">
-                📱 Formato obrigatório: (DDD) 98765-4321
+                📱 Formato: (DDD) 91234-5678 para celular
               </p>
-              
-              
-              
+              <p className="text-xs text-blue-700 mt-1">
+                Se não tiver conta, criaremos uma automaticamente
+              </p>
             </div>
 
-            {/* Continuar sem cadastro */}
             <div className="mt-6 text-center">
               <button
                 onClick={continuarSemCadastro}

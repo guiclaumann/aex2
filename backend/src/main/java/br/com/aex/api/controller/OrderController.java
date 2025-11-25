@@ -4,7 +4,6 @@ import br.com.aex.api.dto.complete_order.CompleteOrderDtoV1;
 import br.com.aex.api.dto.order.OrderDtoV1;
 import br.com.aex.entity.Cliente;
 import br.com.aex.entity.Pedido;
-import br.com.aex.service.CreateOrderService;
 import br.com.aex.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,7 +23,6 @@ import static br.com.aex.api.Endpoints.V1_ORDER;
 public class OrderController {
 
     private final OrderService orderService;
-    private final CreateOrderService createOrderService;
 
     @GetMapping(path = "/{id}")
     @Operation(summary = "Get Order by ID")
@@ -49,7 +47,7 @@ public class OrderController {
                 );
             }
 
-            final CompleteOrderDtoV1 response = createOrderService.createOrder(completeOrderDto);
+            final CompleteOrderDtoV1 response = orderService.createOrder(completeOrderDto);
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {

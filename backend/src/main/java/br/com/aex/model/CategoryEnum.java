@@ -19,7 +19,7 @@ public enum CategoryEnum {
 
     public static CategoryEnum from(final String categoria) {
         for (final CategoryEnum category : CategoryEnum.values()) {
-            if (category.name().equals(categoria)) {
+            if (category.name().equalsIgnoreCase(categoria)) {
                 return category;
             }
         }

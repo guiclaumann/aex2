@@ -4,6 +4,7 @@ import br.com.aex.entity.Cliente;
 import br.com.aex.repository.ClienteRepository;
 import br.com.aex.service.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,7 +15,10 @@ public class ClientService {
 
     private final ClienteRepository clienteRepository;
 
-    // ✅ Métodos que os Controllers esperam:
+    public boolean telefoneExists(String telefone) {
+        return clienteRepository.findByTelefone(telefone).isPresent();
+    }
+
     public List<Cliente> getClients() {
         return clienteRepository.findAll();
     }
@@ -30,7 +34,11 @@ public class ClientService {
     }
 
     public Cliente saveClient(Cliente client) {
-        return clienteRepository.save(client);
+        try {
+            return clienteRepository.save(client);
+        } catch (DataIntegrityViolationException e) {
+            throw new RuntimeException("Telefone já cadastrado: " + client.getTelefone());
+        }
     }
 
     public Cliente patchClient(Long id, Cliente clientDetails) {
@@ -39,6 +47,11 @@ public class ClientService {
             client.setNome(clientDetails.getNome());
         }
         if (clientDetails.getTelefone() != null) {
+            // Validar se novo telefone não pertence a outro cliente
+            if (telefoneExists(clientDetails.getTelefone()) && 
+                !client.getTelefone().equals(clientDetails.getTelefone())) {
+                throw new RuntimeException("Telefone já cadastrado para outro cliente");
+            }
             client.setTelefone(clientDetails.getTelefone());
         }
         return clienteRepository.save(client);

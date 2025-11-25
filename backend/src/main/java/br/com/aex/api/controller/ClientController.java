@@ -13,9 +13,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.util.UriComponentsBuilder; // ✅ IMPORT ADICIONADO
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List; // ✅ IMPORT ADICIONADO
 
 import static br.com.aex.api.Endpoints.V1_CLIENT;
 
@@ -30,10 +31,21 @@ public class ClientController {
         this.clientService = clientService;
     }
 
+    // ✅ NOVO MÉTODO ADICIONADO AQUI - Listar todos os clientes
     @GetMapping
+    @Operation(summary = "Get all Clients")
+    public ResponseEntity<List<ClientResponseDtoV1>> getAllClients() {
+        final List<Cliente> clients = clientService.getClients();
+        final List<ClientResponseDtoV1> response = clients.stream()
+            .map(ClientResponseDtoV1::from)
+            .toList();
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/telephone")
     @Operation(summary = "Get Client by telephone number")
     @Parameter(name = "telephone", in = ParameterIn.QUERY, description = "Telephone number")
-    public ResponseEntity<ClientResponseDtoV1> getClient(@RequestParam final String telephone) {
+    public ResponseEntity<ClientResponseDtoV1> getClientByTelephone(@RequestParam final String telephone) {
         final Cliente client = clientService.getClient(telephone);
         final ClientResponseDtoV1 response = ClientResponseDtoV1.from(client);
         return ResponseEntity.ok(response);
@@ -42,7 +54,7 @@ public class ClientController {
     @GetMapping(path = "/{id}")
     @Operation(summary = "Get Client by ID")
     @Parameter(name = "id", in = ParameterIn.PATH, description = "Client ID")
-    public ResponseEntity<ClientResponseDtoV1> getClient(@PathVariable final Long id) {
+    public ResponseEntity<ClientResponseDtoV1> getClientById(@PathVariable final Long id) {
         final Cliente client = clientService.getClient(id);
         final ClientResponseDtoV1 response = ClientResponseDtoV1.from(client);
         return ResponseEntity.ok(response);
@@ -60,6 +72,11 @@ public class ClientController {
     @PostMapping
     @Operation(summary = "Create Client")
     public ResponseEntity<ClientResponseDtoV1> createClient(@RequestBody @Valid final ClientDtoV1 clientDto) {
+        // Validar se telefone já existe
+        if (clientService.telefoneExists(clientDto.telefone())) {
+            return ResponseEntity.badRequest().build();
+        }
+        
         // Converter DTO para Entity
         Cliente cliente = new Cliente();
         cliente.setNome(clientDto.nome());
@@ -80,6 +97,11 @@ public class ClientController {
     @Operation(summary = "Patch Client by ID")
     @Parameter(name = "id", in = ParameterIn.PATH, description = "Client ID")
     public ResponseEntity<ClientResponseDtoV1> patchClient(@PathVariable final Long id, @RequestBody @Valid final ClientPatchDtoV1 patchDto) {
+        // Validar se novo telefone já existe (se fornecido)
+        if (patchDto.telefone() != null && clientService.telefoneExists(patchDto.telefone())) {
+            return ResponseEntity.badRequest().build();
+        }
+        
         // Converter DTO para Entity
         Cliente clienteDetails = new Cliente();
         if (patchDto.nome() != null) {
